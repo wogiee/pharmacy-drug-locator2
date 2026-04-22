@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>약품 위치 찾기</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>약품 위치 찾기</h1>
+        <p id="summary">약품 데이터를 불러오는 중</p>
+      </div>
+      <div class="top-actions">
+        <span id="syncStatus" class="sync-status">오프라인 준비 중</span>
+        <button id="seedBtn" type="button" class="hidden">초기 데이터 등록</button>
+        <button id="exportBtn" type="button">내보내기</button>
+        <label class="file-button">
+          가져오기
+          <input id="importInput" type="file" accept="application/json" />
+        </label>
+      </div>
+    </header>
+
+    <main id="appMain" class="layout">
+      <section class="search-panel" aria-label="약품 검색">
+        <div id="categoryTabs" class="category-tabs" aria-label="카테고리 탭"></div>
+        <div class="search-row">
+          <input id="searchInput" type="search" placeholder="약품명, 카테고리, 제조사 검색" autocomplete="off" />
+          <select id="locationFilter" aria-label="위치 필터">
+            <option value="">전체 위치</option>
+            <option value="PS">PS 파스</option>
+            <option value="DR">DR 드링크</option>
+          </select>
+          <select id="stockFilter" aria-label="재고 필터">
+            <option value="">전체 재고</option>
+            <option value="있음">재고 있음</option>
+            <option value="없음">재고 없음</option>
+          </select>
+        </div>
+        <div id="results" class="results" aria-live="polite"></div>
+      </section>
+
+      <aside class="detail-panel" aria-label="약품 상세 및 관리">
+        <div class="detail-heading">
+          <span id="detailCategory" class="category-pill"></span>
+          <h2 id="detailTitle">약품을 선택하세요</h2>
+        </div>
+
+        <section id="descriptionView" class="description-view hidden" aria-hidden="true">
+          <span id="factOfficialBadge" class="official-badge manual">직접 입력</span>
+          <span id="factDescription"></span>
+          <span id="matchNotice"></span>
+          <span id="factLocation"></span>
+          <span id="factStock"></span>
+          <span id="factOfficialName"></span>
+          <span id="factManufacturer"></span>
+          <span id="factPrice"></span>
+          <span id="factSource"></span>
+        </section>
+
+        <form id="detailForm" class="hidden">
+          <div class="image-box edit-image-box">
+            <img id="drugImage" alt="" />
+            <span id="imageFallback">이미지 없음</span>
+          </div>
+
+          <label>
+            사진 파일 업로드
+            <input id="imageFileField" name="imageFile" type="file" accept="image/*" />
+          </label>
+
+          <label>
+            약품명
+            <input id="nameField" name="name" required />
+          </label>
+
+          <label>
+            공식 제품명
+            <input id="officialNameField" name="officialName" placeholder="식약처/약학정보원 확인 후 입력" />
+          </label>
+
+          <div class="field-grid">
+            <label>
+              위치
+              <select id="locationField" name="location"></select>
+            </label>
+            <label>
+              재고
+              <select id="stockField" name="stock">
+                <option value="있음">있음</option>
+                <option value="없음">없음</option>
+                <option value="">미확인</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-grid">
+            <label>
+              카테고리
+              <input id="categoryField" name="category" />
+            </label>
+            <label>
+              가격
+              <input id="priceField" name="price" inputmode="numeric" />
+            </label>
+          </div>
+
+          <label>
+            제조사/수입사
+            <input id="manufacturerField" name="manufacturer" />
+          </label>
+
+          <label>
+            이미지 URL
+            <input id="imageUrlField" name="imageUrl" placeholder="공식 이미지 URL" />
+          </label>
+
+          <label>
+            출처 URL
+            <input id="sourceUrlField" name="sourceUrl" placeholder="식약처 또는 약학정보원 URL" />
+          </label>
+
+          <input id="descriptionField" name="description" type="hidden" />
+
+          <div class="form-actions">
+            <button id="saveBtn" type="submit">수정 저장</button>
+            <button id="resetBtn" type="button">선택 항목 초기화</button>
+          </div>
+        </form>
+      </aside>
+    </main>
+
+    <template id="resultTemplate">
+      <button class="result-card" type="button">
+        <span class="result-body">
+          <span class="result-head">
+            <span class="result-main">
+              <strong class="result-name"></strong>
+              <span class="result-meta"></span>
+            </span>
+            <span class="location-badge"></span>
+          </span>
+          <span class="result-expanded">
+            <span class="result-thumb-wrap">
+              <img class="result-thumb" alt="" />
+              <span class="result-thumb-empty">이미지 없음</span>
+            </span>
+            <span class="result-detail">
+              <span class="official-badge"></span>
+              <span class="result-description"></span>
+            </span>
+          </span>
+        </span>
+      </button>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
