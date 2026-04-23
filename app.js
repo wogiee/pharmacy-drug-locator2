@@ -50,90 +50,54 @@ const SHELF_CATEGORIES = [
   { value: "금연보조제", location: "11-R" },
   { value: "소독용 에탄올 및 살균소독제", location: "12-L" },
   { value: "의약외품", location: "13-L" },
-  { value: "유산균", location: "" },
-  { value: "은행잎, 뇌영양제", location: "" },
-  { value: "오메가3", location: "" },
-  { value: "눈영양제", location: "" },
-  { value: "관절약", location: "" },
-  { value: "비타민C", location: "" },
-  { value: "비타민D", location: "" },
-  { value: "혈압, 혈행, 혈당건강", location: "" },
-  { value: "남성 배뇨", location: "" },
-  { value: "아르기닌", location: "" },
-  { value: "밀크시슬", location: "" },
-  { value: "탈모치료제", location: "" },
-  { value: "마그네슘", location: "" },
-  { value: "종합영양제", location: "" },
-  { value: "드링크제", location: "DR" },
-  { value: "파스류", location: "PS" },
-  { value: "보호대", location: "" },
-  { value: "마스크", location: "" },
 ];
 
 const AUTO_CATEGORY_RULES = [
-  ["유산균", ["유산균", "프로바이오", "락토", "비오틱"]],
-  ["은행잎, 뇌영양제", ["은행", "징코", "기억", "뇌영양"]],
-  ["오메가3", ["오메가", "omega"]],
-  ["눈영양제", ["루테인", "지아잔틴", "눈", "아이", "빌베리"]],
-  ["관절약", ["관절", "글루코사민", "콘드로이친", "msm"]],
-  ["비타민C", ["비타민c", "비타민 c", "아스코르빈"]],
-  ["비타민D", ["비타민d", "비타민 d", "디카맥스", "칼슘"]],
-  ["혈압, 혈행, 혈당건강", ["혈압", "혈행", "혈당", "코엔자임", "코큐텐", "바나바"]],
-  ["남성 배뇨", ["전립", "쏘팔메토", "배뇨"]],
-  ["아르기닌", ["아르기닌", "arginine"]],
-  ["밀크시슬", ["밀크시슬", "실리마린", "간"]],
-  ["탈모치료제", ["탈모", "미녹시딜", "마이녹실", "판시딜"]],
-  ["마그네슘", ["마그네슘", "magnesium"]],
-  ["종합영양제", ["종합", "멀티비타민", "멀티 비타민"]],
-  ["드링크제", ["드링크", "박카스", "비타500", "원비", "활명수"]],
-  ["파스류", ["파스", "플라스타", "카타플라스마"]],
-  ["보호대", ["보호대", "밴드", "서포터"]],
-  ["마스크", ["마스크", "kf94", "kf80"]],
+  ["해열진통소염제", ["소염진통", "진통소염", "진통제", "해열", "타이레놀", "게보린", "펜잘", "탁센", "이지엔", "이부프로펜", "아세트아미노펜", "나프록센"]],
+  ["안과용제 및 인공눈물", ["인공눈물", "안약", "눈", "아이드롭", "점안"]],
+  ["우황청심원", ["우황청심", "청심원"]],
+  ["수면유도제", ["수면", "멜라토닌", "슬립", "드림", "쿨드림"]],
+  ["근육이완제", ["근육이완", "클로르족사존", "에페리손"]],
+  ["외용진통제(타박상)", ["타박상", "삠", "염좌", "외용진통", "멍크림"]],
+  ["연고류 일반", ["연고", "크림", "겔", "후시딘", "마데카솔"]],
+  ["여성질환치료제", ["질염", "칸디다", "여성질환"]],
+  ["경구피임약", ["피임약", "사전피임", "사후피임"]],
+  ["임신진단테스트기", ["임신테스트", "임신진단", "테스트기"]],
+  ["일반밴드", ["밴드", "반창고"]],
+  ["항진균제(무좀)", ["무좀", "항진균", "백선", "라미실", "카네스텐"]],
+  ["구강질환용제", ["구내염", "인후", "목", "가글", "트로키", "구강"]],
+  ["멀미약", ["멀미", "키미테", "배멀미", "차멀미"]],
+  ["구충제", ["구충", "회충", "요충"]],
+  ["습윤밴드", ["습윤", "메디폼", "듀오덤", "하이드로콜로이드"]],
+  ["항히스타민제", ["항히스타민", "알레르기약", "콧물", "재채기"]],
+  ["알러지", ["알러지", "알레르기", "비염"]],
+  ["동물용 의약품", ["동물용", "반려", "강아지", "고양이"]],
+  ["치아 구강용제", ["치통", "치아", "잇몸", "치약", "입냄새"]],
+  ["여성 건강기능식품(항산화, 갱년기 완화, 부종 개선)", ["갱년기", "이노시톨", "크랜베리", "여성유산균"]],
+  ["한방 감기약", ["쌍화탕", "갈근탕", "한방감기", "은교", "청폐"]],
+  ["위장약", ["위장", "위염", "속쓰림", "제산", "겔포스", "개비스콘"]],
+  ["소화제", ["소화", "베아제", "훼스탈", "까스", "정로환"]],
+  ["특수 한방제제", ["한방", "공진단", "경옥고"]],
+  ["지사제", ["설사", "지사", "로페라마이드"]],
+  ["변비약", ["변비", "완하", "차전자피"]],
+  ["관장약", ["관장"]],
+  ["감기약1", ["종합감기", "감기약", "코감기", "목감기"]],
+  ["감기약2", ["종합감기", "감기약", "몸살감기"]],
+  ["치질약", ["치질", "치핵", "치열"]],
+  ["지루성피부염(비듬)", ["비듬", "지루성", "니조랄"]],
+  ["어린이의약품", ["어린이", "키즈", "베이비", "챔프", "부루펜시럽"]],
+  ["염색약", ["염색약", "헤어컬러"]],
+  ["다한증치료제", ["다한증", "드리클로"]],
+  ["여름용품", ["모기", "벌레", "쿨", "여름"]],
+  ["구강 및 입술 케어", ["립", "입술", "립밤"]],
+  ["금연보조제", ["금연", "니코틴"]],
+  ["소독용 에탄올 및 살균소독제", ["에탄올", "소독", "살균"]],
+  ["의약외품", ["마스크", "보호대", "파스", "드링크", "유산균", "오메가", "비타민", "밀크시슬", "루테인", "마그네슘", "건기식"]],
 ];
 
-const INFERRED_CATEGORY_LOCATIONS = {
-  유산균: "유산균",
-  "은행잎, 뇌영양제": "은행잎, 뇌영양제",
-  오메가3: "오메가3",
-  눈영양제: "눈영양제",
-  관절약: "관절약",
-  비타민C: "비타민C",
-  비타민D: "비타민D",
-  "혈압, 혈행, 혈당건강": "혈압, 혈행, 혈당건강",
-  "남성 배뇨": "남성 배뇨",
-  아르기닌: "아르기닌",
-  밀크시슬: "밀크시슬",
-  탈모치료제: "탈모치료제",
-  마그네슘: "마그네슘",
-  종합영양제: "종합영양제",
-  드링크제: "드링크제",
-  파스류: "파스류",
-  의약외품: "의약외품",
-  보호대: "보호대",
-  마스크: "마스크",
-};
+const EXTRA_LOCATION_OPTIONS = [];
 
-const EXTRA_LOCATION_OPTIONS = [
-  "유산균",
-  "은행잎, 뇌영양제",
-  "오메가3",
-  "눈영양제",
-  "관절약",
-  "비타민C",
-  "비타민D",
-  "혈압, 혈행, 혈당건강",
-  "남성 배뇨",
-  "아르기닌",
-  "밀크시슬",
-  "탈모치료제",
-  "마그네슘",
-  "종합영양제",
-  "드링크제",
-  "파스류",
-  "의약외품",
-  "보호대",
-  "마스크",
-];
+const ALLOWED_CATEGORIES = new Set(SHELF_CATEGORIES.map((item) => item.value));
 
 const CATEGORY_LOCATION = new Map();
 for (const item of SHELF_CATEGORIES) {
@@ -214,8 +178,6 @@ const els = {
 
 const fields = {
   name: $("#nameField"),
-  officialName: $("#officialNameField"),
-  location: $("#locationField"),
   category: $("#categoryField"),
   price: $("#priceField"),
   imageFile: $("#imageFileField"),
@@ -328,8 +290,6 @@ function normalizeLocationLabel(location) {
 }
 
 function initialLocation(category) {
-  if (category.includes("파스")) return "PS";
-  if (category.includes("드링크")) return "DR";
   if (CATEGORY_LOCATION.has(category)) return CATEGORY_LOCATION.get(category);
   return "";
 }
@@ -345,28 +305,31 @@ function inferCategoryFromName(name) {
   return "";
 }
 
-function inferLocationForProduct(name, category) {
-  const cleanCategory = categoryLabel(category);
+function canonicalizeCategory(name, category) {
+  const cleanCategory = categoryLabel(String(category || ""));
   const cleanName = String(name || "");
-  if (cleanCategory.includes("연고") || cleanName.includes("연고")) {
-    return "2-L";
-  }
+
   if (
     cleanCategory.includes("소염진통제") ||
     cleanCategory.includes("진통소염제") ||
     cleanName.includes("소염진통제") ||
     cleanName.includes("진통소염제")
   ) {
-    return "1-L";
+    return "해열진통소염제";
   }
-  if (cleanCategory.includes("파스")) return "PS";
-  if (cleanCategory.includes("드링크")) return "DR";
+
+  if (ALLOWED_CATEGORIES.has(cleanCategory)) return cleanCategory;
+
+  const inferred = inferCategoryFromName(cleanName);
+  if (ALLOWED_CATEGORIES.has(inferred)) return inferred;
+
+  return "";
+}
+
+function inferLocationForProduct(name, category) {
+  const cleanCategory = canonicalizeCategory(name, category);
+  const cleanName = String(name || "");
   if (CATEGORY_LOCATION.has(cleanCategory)) return CATEGORY_LOCATION.get(cleanCategory);
-  if (INFERRED_CATEGORY_LOCATIONS[cleanCategory]) return INFERRED_CATEGORY_LOCATIONS[cleanCategory];
-
-  const inferredCategory = inferCategoryFromName(name);
-  if (inferredCategory) return INFERRED_CATEGORY_LOCATIONS[inferredCategory] || initialLocation(inferredCategory);
-
   return "";
 }
 
@@ -391,7 +354,7 @@ function stockIsOn(value, type = "store") {
 }
 
 function categoryLabel(category) {
-  return category.replace(/^[^\p{L}\p{N}]+/u, "").trim() || "미분류";
+  return String(category || "").replace(/^[^\p{L}\p{N}]+/u, "").trim() || "미분류";
 }
 
 function categoryEmoji(category) {
@@ -527,7 +490,7 @@ function mergeOfficialDetails(baseProducts, detailPayload) {
 }
 
 function fromDbProduct(row) {
-  const category = categoryLabel(row.category || "");
+  const category = canonicalizeCategory(row.name || "", row.category || "");
   return {
     id: row.id,
     name: row.name || "",
@@ -537,7 +500,7 @@ function fromDbProduct(row) {
     stock: normalizeStoreStock(row.stock || ""),
     warehouseStock: normalizeWarehouseStock(row.warehouse_stock || ""),
     manufacturer: row.manufacturer || "",
-    location: normalizeLocationLabel(row.location || inferLocationForProduct(row.name || "", category)),
+    location: inferLocationForProduct(row.name || "", category),
     description: row.description || "",
     imageUrl: row.image_url || "",
     sourceUrl: row.source_url || "",
@@ -551,16 +514,17 @@ function fromDbProduct(row) {
 }
 
 function toDbProduct(product) {
+  const category = canonicalizeCategory(product.name || "", product.category || "");
   return {
     id: product.id,
     name: product.name || "",
     official_name: product.officialName || "",
-    category: categoryLabel(product.category || ""),
+    category,
     price: product.price || "",
     stock: product.stock || "",
     warehouse_stock: product.warehouseStock || WAREHOUSE_STOCK_OFF,
     manufacturer: product.manufacturer || "",
-    location: normalizeLocationLabel(product.location || ""),
+    location: inferLocationForProduct(product.name || "", category),
     description: product.description || "",
     image_url: product.imageUrl || "",
     source_url: product.sourceUrl || "",
@@ -699,7 +663,7 @@ function locationOptions() {
   for (let shelf = 1; shelf <= 15; shelf += 1) {
     shelfOptions.push(`${shelf}-L`, `${shelf}-R`);
   }
-  return ["", "PS", "DR", ...shelfOptions, ...EXTRA_LOCATION_OPTIONS];
+  return ["", ...shelfOptions, ...EXTRA_LOCATION_OPTIONS];
 }
 
 function locationOptionLabel(location) {
@@ -710,15 +674,6 @@ function locationOptionLabel(location) {
 
 function displayLocation(location) {
   return normalizeLocationLabel(location) || "미지정";
-}
-
-function renderLocationOptions() {
-  fields.location.innerHTML = locationOptions()
-    .map((location) => {
-      const normalized = normalizeLocationLabel(location);
-      return `<option value="${escapeHtml(normalized)}">${escapeHtml(locationOptionLabel(normalized))}</option>`;
-    })
-    .join("");
 }
 
 function renderLocationFilterOptions() {
@@ -740,12 +695,6 @@ function categoryOptions() {
   for (const item of SHELF_CATEGORIES) {
     const category = categoryLabel(item.value);
     if (seen.has(category)) continue;
-    seen.add(category);
-    options.push(category);
-  }
-  for (const product of state.products) {
-    const category = categoryLabel(product.category || "");
-    if (!category || seen.has(category)) continue;
     seen.add(category);
     options.push(category);
   }
@@ -809,7 +758,6 @@ function productMatches(product) {
   if (location === "__UNSET__") return !product.location;
   if (location && product.location !== location) return false;
   if (stock && product.stock !== stock) return false;
-  if (shelf === "PS" || shelf === "DR") return product.location === shelf;
   if (shelf && !product.location.startsWith(`${shelf}-`)) return false;
 
   return true;
@@ -951,16 +899,17 @@ function placeEditForm() {
 }
 
 async function addNewProduct() {
+  const presetCategory = ALLOWED_CATEGORIES.has(state.categoryFilter) ? state.categoryFilter : "";
   const product = {
     id: `drug-custom-${Date.now()}`,
     name: "새 약품",
     officialName: "",
-    category: "",
+    category: presetCategory,
     price: "",
     stock: STORE_STOCK_ON,
     warehouseStock: WAREHOUSE_STOCK_OFF,
     manufacturer: "",
-    location: "",
+    location: inferLocationForProduct("새 약품", presetCategory),
     description: "",
     imageUrl: "",
     sourceUrl: "",
@@ -976,6 +925,7 @@ async function addNewProduct() {
   state.selectedId = saved.id;
   state.detailTab = "edit";
   renderCategoryTabs();
+  renderLocationFilterOptions();
   renderDetail();
   fields.name.focus();
   fields.name.select();
@@ -1030,9 +980,7 @@ function renderDetail() {
     : "미입력";
 
   fields.name.value = product.name;
-  fields.officialName.value = product.officialName || "";
-  fields.location.value = product.location || "";
-  fields.category.value = product.category || "";
+  fields.category.value = canonicalizeCategory(product.name, product.category) || "";
   fields.price.value = product.price || "";
   fields.imageFile.value = "";
 
@@ -1047,23 +995,15 @@ async function updateSelectedProduct() {
   const product = selectedProduct();
   if (!product) return;
 
-  const inferredCategory = inferCategoryFromName(fields.name.value.trim());
-  const chosenCategory = categoryLabel(fields.category.value.trim() || inferredCategory);
+  const chosenCategory = canonicalizeCategory(fields.name.value.trim(), fields.category.value.trim());
 
   Object.assign(product, {
     name: fields.name.value.trim(),
-    officialName: fields.officialName.value.trim(),
-    location: fields.location.value,
     category: chosenCategory,
     price: fields.price.value.trim(),
+    location: inferLocationForProduct(fields.name.value.trim(), chosenCategory),
     updatedAt: new Date().toISOString(),
   });
-
-  if (product.category.includes("파스")) product.location = "PS";
-  if (product.category.includes("드링크")) product.location = "DR";
-  if (!product.location || product.location === "미지정") {
-    product.location = inferLocationForProduct(product.name, product.category);
-  }
 
   els.syncStatus.textContent = "저장 중";
   const saved = await saveProductToSupabase(product);
@@ -1195,7 +1135,6 @@ async function importJson(file) {
 }
 
 async function init() {
-  renderLocationOptions();
   renderCategoryOptions();
   showApp();
   await loadProductsFromSupabase();
@@ -1252,7 +1191,8 @@ els.form.addEventListener("submit", (event) => {
 $("#resetBtn").addEventListener("click", async () => {
   const product = selectedProduct();
   if (!product) return;
-  product.location = initialLocation(product.category);
+  product.category = canonicalizeCategory(product.name, "");
+  product.location = inferLocationForProduct(product.name, product.category);
   product.officialName = "";
   product.updatedAt = new Date().toISOString();
   try {
@@ -1292,15 +1232,11 @@ els.importInput.addEventListener("change", async (event) => {
   }
 });
 fields.category.addEventListener("change", () => {
-  const category = fields.category.value;
-  if (CATEGORY_LOCATION.has(category)) fields.location.value = CATEGORY_LOCATION.get(category);
+  fields.category.value = canonicalizeCategory(fields.name.value, fields.category.value);
 });
 fields.name.addEventListener("input", () => {
-  const inferredCategory = inferCategoryFromName(fields.name.value);
-  if (!fields.category.value && inferredCategory) {
-    fields.category.value = inferredCategory;
-    if (CATEGORY_LOCATION.has(inferredCategory)) fields.location.value = CATEGORY_LOCATION.get(inferredCategory);
-  }
+  const inferredCategory = canonicalizeCategory(fields.name.value, fields.category.value);
+  if (inferredCategory) fields.category.value = inferredCategory;
 });
 fields.imageFile.addEventListener("change", async (event) => {
   const [file] = event.target.files;
