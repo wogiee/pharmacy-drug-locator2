@@ -324,6 +324,7 @@ textarea {
   box-shadow: none;
   padding: 0;
   color: inherit;
+  text-align: left;
 }
 
 .result-head:hover {
@@ -333,17 +334,22 @@ textarea {
 
 .result-main {
   display: grid;
+  justify-items: start;
   gap: 6px;
   min-width: 0;
   overflow: hidden;
+  text-align: left;
 }
 
 .result-name {
+  display: block;
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   color: #ffffff;
   font-size: 17px;
   line-height: 1.35;
+  text-align: left;
 }
 
 .result-meta {
@@ -354,6 +360,8 @@ textarea {
   font-size: 13px;
   line-height: 1.35;
   min-width: 0;
+  justify-content: flex-start;
+  text-align: left;
 }
 
 .result-expanded {
@@ -439,6 +447,24 @@ textarea {
   gap: 9px;
   min-width: 0;
   overflow: hidden;
+}
+
+.expanded-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.edit-product-btn {
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: linear-gradient(135deg, #5eead4, #60a5fa);
+  color: #062018;
+  border-color: transparent;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .meta-chip {

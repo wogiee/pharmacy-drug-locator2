@@ -625,8 +625,8 @@ function renderResults() {
     node.querySelector(".location-badge").textContent = product.location || "미지정";
     const storeToggle = node.querySelector('.stock-toggle[data-stock-type="store"]');
     const warehouseToggle = node.querySelector('.stock-toggle[data-stock-type="warehouse"]');
-    storeToggle.textContent = product.stock || STORE_STOCK_OFF;
-    warehouseToggle.textContent = product.warehouseStock || WAREHOUSE_STOCK_OFF;
+    storeToggle.textContent = STORE_STOCK_ON;
+    warehouseToggle.textContent = WAREHOUSE_STOCK_ON;
     storeToggle.classList.toggle("is-on", stockIsOn(product.stock));
     warehouseToggle.classList.toggle("is-on", stockIsOn(product.warehouseStock, "warehouse"));
     node.querySelector(".result-description").innerHTML = descriptionPreview(product);
@@ -670,6 +670,7 @@ async function addNewProduct() {
   const saved = await saveProductToSupabase(product);
   state.products.unshift(saved);
   state.selectedId = saved.id;
+  state.detailTab = "edit";
   renderCategoryTabs();
   renderDetail();
   fields.name.focus();
@@ -680,7 +681,7 @@ async function addNewProduct() {
 function setDetailTab(tab) {
   state.detailTab = tab;
   els.descriptionView.classList.add("hidden");
-  els.form.classList.toggle("hidden", !state.selectedId);
+  els.form.classList.toggle("hidden", !(state.selectedId && tab === "edit"));
 }
 
 function displayValue(value, fallback = "미입력") {
@@ -706,7 +707,7 @@ function renderDetail() {
     els.drugImage.src = "";
     els.imageBox.classList.remove("has-image");
     applyOfficialBadge(els.factOfficialBadge, {});
-    setDetailTab("edit");
+    setDetailTab("view");
     renderResults();
     return;
   }
@@ -755,7 +756,7 @@ function renderDetail() {
   els.drugImage.alt = product.name;
   els.drugImage.src = product.imageUrl || "";
   els.imageBox.classList.toggle("has-image", Boolean(product.imageUrl));
-  setDetailTab("edit");
+  setDetailTab(state.detailTab);
   renderResults();
 }
 
@@ -859,6 +860,16 @@ els.categoryTabs.addEventListener("click", (event) => {
   renderResults();
 });
 els.results.addEventListener("click", (event) => {
+  const editButton = event.target.closest(".edit-product-btn");
+  if (editButton) {
+    const card = event.target.closest(".result-card");
+    if (!card) return;
+    state.selectedId = card.dataset.id;
+    state.detailTab = "edit";
+    renderDetail();
+    return;
+  }
+
   const stockButton = event.target.closest(".stock-toggle");
   if (stockButton) {
     const card = event.target.closest(".result-card");
@@ -876,7 +887,7 @@ els.results.addEventListener("click", (event) => {
   if (!card) return;
   if (!event.target.closest(".result-head")) return;
   state.selectedId = state.selectedId === card.dataset.id ? null : card.dataset.id;
-  state.detailTab = "edit";
+  state.detailTab = "view";
   renderDetail();
 });
 els.form.addEventListener("submit", (event) => {
