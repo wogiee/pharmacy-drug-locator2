@@ -50,9 +50,7 @@
         </div>
 
         <section id="descriptionView" class="description-view hidden" aria-hidden="true">
-          <span id="factOfficialBadge" class="official-badge manual">직접 입력</span>
           <span id="factDescription"></span>
-          <span id="matchNotice"></span>
           <span id="factLocation"></span>
           <span id="factStock"></span>
           <span id="factOfficialName"></span>
@@ -63,46 +61,38 @@
 
         <div id="formHome"></div>
         <form id="detailForm" class="hidden">
-          <div class="form-top-grid">
-            <div class="image-box edit-image-box compact-image-box">
-              <img id="drugImage" alt="" />
-              <span id="imageFallback">이미지 없음</span>
-            </div>
+          <div class="image-box edit-image-box">
+            <img id="drugImage" alt="" />
+            <span id="imageFallback">이미지 없음</span>
+          </div>
+          <button id="removeImageBtn" class="secondary-danger-button" type="button">이미지 삭제</button>
 
-            <div class="form-main-fields">
-              <label>
-                약품명
-                <input id="nameField" name="name" required />
-              </label>
+          <label>
+            약품명
+            <input id="nameField" name="name" required />
+          </label>
 
-              <label>
-                공식 제품명
-                <input id="officialNameField" name="officialName" placeholder="식약처/약학정보원 확인 후 입력" />
-              </label>
+          <label>
+            공식 제품명
+            <input id="officialNameField" name="officialName" placeholder="식약처/약학정보원 확인 후 입력" />
+          </label>
 
-              <div class="field-grid">
-                <label>
-                  위치
-                  <select id="locationField" name="location"></select>
-                </label>
-              </div>
+          <div class="field-grid">
+            <label>
+              위치
+              <select id="locationField" name="location"></select>
+            </label>
+          </div>
 
-              <div class="field-grid">
-                <label>
-                  카테고리
-                  <select id="categoryField" name="category"></select>
-                </label>
-                <label>
-                  가격
-                  <input id="priceField" name="price" inputmode="numeric" />
-                </label>
-              </div>
-
-              <label>
-                제조사/수입사
-                <input id="manufacturerField" name="manufacturer" />
-              </label>
-            </div>
+          <div class="field-grid">
+            <label>
+              카테고리
+              <select id="categoryField" name="category"></select>
+            </label>
+            <label>
+              가격
+              <input id="priceField" name="price" inputmode="numeric" />
+            </label>
           </div>
 
           <div class="form-actions">
@@ -140,14 +130,7 @@
             </span>
           </div>
           <div class="result-expanded">
-            <span class="result-thumb-wrap">
-              <img class="result-thumb" alt="" />
-              <span class="result-thumb-empty">💊</span>
-            </span>
             <div class="result-detail">
-              <span class="expanded-actions">
-                <span class="official-badge"></span>
-              </span>
               <div class="inline-form-host"></div>
               <span class="result-description"></span>
             </div>

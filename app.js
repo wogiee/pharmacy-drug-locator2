@@ -105,11 +105,11 @@ const INFERRED_CATEGORY_LOCATIONS = {
   밀크시슬: "밀크시슬",
   탈모치료제: "탈모치료제",
   마그네슘: "마그네슘",
-  종합영양제: "종합영양제 1",
+  종합영양제: "종합영양제",
   드링크제: "드링크제",
   파스류: "파스류",
   의약외품: "의약외품",
-  보호대: "보호대1",
+  보호대: "보호대",
   마스크: "마스크",
 };
 
@@ -127,14 +127,11 @@ const EXTRA_LOCATION_OPTIONS = [
   "밀크시슬",
   "탈모치료제",
   "마그네슘",
-  "종합영양제 1",
-  "종합영양제 2",
+  "종합영양제",
   "드링크제",
   "파스류",
   "의약외품",
-  "보호대1",
-  "보호대2",
-  "보호대3",
+  "보호대",
   "마스크",
 ];
 
@@ -213,8 +210,6 @@ const els = {
   factPrice: $("#factPrice"),
   factSource: $("#factSource"),
   factDescription: $("#factDescription"),
-  factOfficialBadge: $("#factOfficialBadge"),
-  matchNotice: $("#matchNotice"),
 };
 
 const fields = {
@@ -223,7 +218,6 @@ const fields = {
   location: $("#locationField"),
   category: $("#categoryField"),
   price: $("#priceField"),
-  manufacturer: $("#manufacturerField"),
   imageFile: $("#imageFileField"),
 };
 
@@ -325,6 +319,14 @@ function normalizeForSearch(value) {
     .replace(/[()\[\]{}·ㆍ\-\s]/g, "");
 }
 
+function normalizeLocationLabel(location) {
+  const value = String(location || "").trim();
+  if (!value) return "";
+  if (value === "종합영양제 1" || value === "종합영양제 2") return "종합영양제";
+  if (value === "보호대1" || value === "보호대2" || value === "보호대3") return "보호대";
+  return value;
+}
+
 function initialLocation(category) {
   if (category.includes("파스")) return "PS";
   if (category.includes("드링크")) return "DR";
@@ -346,6 +348,9 @@ function inferCategoryFromName(name) {
 function inferLocationForProduct(name, category) {
   const cleanCategory = categoryLabel(category);
   const cleanName = String(name || "");
+  if (cleanCategory.includes("연고") || cleanName.includes("연고")) {
+    return "2-L";
+  }
   if (
     cleanCategory.includes("소염진통제") ||
     cleanCategory.includes("진통소염제") ||
@@ -532,7 +537,7 @@ function fromDbProduct(row) {
     stock: normalizeStoreStock(row.stock || ""),
     warehouseStock: normalizeWarehouseStock(row.warehouse_stock || ""),
     manufacturer: row.manufacturer || "",
-    location: row.location || inferLocationForProduct(row.name || "", category),
+    location: normalizeLocationLabel(row.location || inferLocationForProduct(row.name || "", category)),
     description: row.description || "",
     imageUrl: row.image_url || "",
     sourceUrl: row.source_url || "",
@@ -555,7 +560,7 @@ function toDbProduct(product) {
     stock: product.stock || "",
     warehouse_stock: product.warehouseStock || WAREHOUSE_STOCK_OFF,
     manufacturer: product.manufacturer || "",
-    location: product.location || "",
+    location: normalizeLocationLabel(product.location || ""),
     description: product.description || "",
     image_url: product.imageUrl || "",
     source_url: product.sourceUrl || "",
@@ -704,13 +709,14 @@ function locationOptionLabel(location) {
 }
 
 function displayLocation(location) {
-  return location || "미지정";
+  return normalizeLocationLabel(location) || "미지정";
 }
 
 function renderLocationOptions() {
   fields.location.innerHTML = locationOptions()
     .map((location) => {
-      return `<option value="${escapeHtml(location)}">${escapeHtml(locationOptionLabel(location))}</option>`;
+      const normalized = normalizeLocationLabel(location);
+      return `<option value="${escapeHtml(normalized)}">${escapeHtml(locationOptionLabel(normalized))}</option>`;
     })
     .join("");
 }
@@ -866,31 +872,6 @@ function parseDescriptionSections(description) {
     .filter((section) => section.body);
 }
 
-function officialBadge(product) {
-  if (!product.sourceName && !product.matchedScore) {
-    return '<span class="official-badge manual">직접 입력</span>';
-  }
-
-  const score = Number(product.matchedScore || 0);
-  const label = score && score < 0.6 ? "공식 데이터 · 검수 필요" : "공식 데이터";
-  const className = score && score < 0.6 ? "needs-review" : "verified";
-  return `<span class="official-badge ${className}">${label}</span>`;
-}
-
-function applyOfficialBadge(element, product) {
-  const score = Number(product.matchedScore || 0);
-  let label = "직접 입력";
-  let status = "manual";
-
-  if (product.sourceName || score) {
-    label = score && score < 0.6 ? "공식 데이터 · 검수 필요" : "공식 데이터";
-    status = score && score < 0.6 ? "needs-review" : "verified";
-  }
-
-  element.textContent = label;
-  element.className = `official-badge ${status}`;
-}
-
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => {
     const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -926,15 +907,15 @@ function renderResults() {
     titleThumb.src = product.imageUrl || "";
     const storeToggle = node.querySelector('.stock-toggle[data-stock-type="store"]');
     const warehouseToggle = node.querySelector('.stock-toggle[data-stock-type="warehouse"]');
-    storeToggle.textContent = STORE_STOCK_ON;
-    warehouseToggle.textContent = WAREHOUSE_STOCK_ON;
-    storeToggle.classList.toggle("is-on", stockIsOn(product.stock));
-    warehouseToggle.classList.toggle("is-on", stockIsOn(product.warehouseStock, "warehouse"));
+    const storeOn = stockIsOn(product.stock);
+    const warehouseOn = stockIsOn(product.warehouseStock, "warehouse");
+    storeToggle.textContent = storeOn ? STORE_STOCK_ON : STORE_STOCK_OFF;
+    warehouseToggle.textContent = warehouseOn ? WAREHOUSE_STOCK_ON : WAREHOUSE_STOCK_OFF;
+    storeToggle.classList.toggle("is-on", storeOn);
+    storeToggle.classList.toggle("is-off", !storeOn);
+    warehouseToggle.classList.toggle("is-on", warehouseOn);
+    warehouseToggle.classList.toggle("is-off", !warehouseOn);
     node.querySelector(".result-description").innerHTML = descriptionPreview(product);
-    node.querySelector(".official-badge").outerHTML = officialBadge(product);
-    const thumb = node.querySelector(".result-thumb");
-    thumb.alt = product.name;
-    thumb.src = product.imageUrl || "";
     node.classList.toggle("has-image", Boolean(product.imageUrl));
     els.results.appendChild(node);
   }
@@ -1024,12 +1005,9 @@ function renderDetail() {
     els.factPrice.textContent = "미입력";
     els.factDescription.innerHTML = '<p class="description-empty">약품을 선택하면 상세설명이 표시됩니다.</p>';
     els.factSource.textContent = "미입력";
-    els.matchNotice.textContent = "";
-    els.matchNotice.classList.remove("visible");
     els.drugImage.alt = "";
     els.drugImage.src = "";
     els.imageBox.classList.remove("has-image");
-    applyOfficialBadge(els.factOfficialBadge, {});
     renderResults();
     setDetailTab("view");
     return;
@@ -1047,18 +1025,6 @@ function renderDetail() {
   els.factManufacturer.textContent = displayValue(product.manufacturer);
   els.factPrice.textContent = formatPrice(product.price) || "미입력";
   els.factDescription.innerHTML = descriptionPreview(product, Infinity);
-  applyOfficialBadge(els.factOfficialBadge, product);
-  const score = Number(product.matchedScore || 0);
-  if (score && score < 0.6) {
-    els.matchNotice.textContent = `자동 매칭 신뢰도 ${(score * 100).toFixed(0)}%: 공식 데이터와 제품명이 완전히 같지 않아 검수가 필요합니다.`;
-    els.matchNotice.classList.add("visible");
-  } else if (score) {
-    els.matchNotice.textContent = `식약처 e약은요 자동 매칭 완료 · 신뢰도 ${(score * 100).toFixed(0)}%`;
-    els.matchNotice.classList.add("visible");
-  } else {
-    els.matchNotice.textContent = "";
-    els.matchNotice.classList.remove("visible");
-  }
   els.factSource.innerHTML = product.sourceUrl
     ? `<a href="${escapeHtml(product.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(product.sourceName || "공식 출처 열기")}</a>`
     : "미입력";
@@ -1068,7 +1034,6 @@ function renderDetail() {
   fields.location.value = product.location || "";
   fields.category.value = product.category || "";
   fields.price.value = product.price || "";
-  fields.manufacturer.value = product.manufacturer || "";
   fields.imageFile.value = "";
 
   els.drugImage.alt = product.name;
@@ -1091,7 +1056,6 @@ async function updateSelectedProduct() {
     location: fields.location.value,
     category: chosenCategory,
     price: fields.price.value.trim(),
-    manufacturer: fields.manufacturer.value.trim(),
     updatedAt: new Date().toISOString(),
   });
 
@@ -1145,6 +1109,27 @@ async function deleteSelectedProduct() {
   renderLocationFilterOptions();
   renderDetail();
   els.syncStatus.textContent = "삭제 완료";
+}
+
+async function removeSelectedProductImage() {
+  const product = selectedProduct();
+  if (!product) return;
+  if (!product.imageUrl) {
+    window.alert("삭제할 이미지가 없습니다.");
+    return;
+  }
+
+  const ok = window.confirm(`"${product.name}" 이미지 표시를 삭제하시겠습니까?`);
+  if (!ok) return;
+
+  product.imageUrl = "";
+  product.updatedAt = new Date().toISOString();
+  els.syncStatus.textContent = "이미지 삭제 중";
+  const saved = await saveProductToSupabase(product);
+  const index = state.products.findIndex((item) => item.id === saved.id);
+  if (index >= 0) state.products[index] = saved;
+  renderDetail();
+  els.syncStatus.textContent = "이미지 삭제 완료";
 }
 
 function excelCell(value) {
@@ -1285,6 +1270,13 @@ $("#deleteBtn").addEventListener("click", () => {
     console.error(error);
     els.syncStatus.textContent = "삭제 실패";
     alert(`삭제에 실패했습니다: ${error.message}`);
+  });
+});
+$("#removeImageBtn").addEventListener("click", () => {
+  removeSelectedProductImage().catch((error) => {
+    console.error(error);
+    els.syncStatus.textContent = "이미지 삭제 실패";
+    alert(`이미지 삭제에 실패했습니다: ${error.message}`);
   });
 });
 els.exportBtn.addEventListener("click", exportExcel);
