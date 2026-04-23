@@ -4,6 +4,64 @@ const SEED_URL = "./data/seed-products.json";
 const SUPABASE_URL = "https://ulmwnhzxuchreyyizazi.supabase.co";
 const SUPABASE_KEY = "sb_publishable_4QXydl9WrLiJUem__dVJPA_IwVVAUlT";
 const SYNC_INTERVAL_MS = 12000;
+const STORE_STOCK_ON = "재고 있음";
+const STORE_STOCK_OFF = "재고 없음";
+const WAREHOUSE_STOCK_ON = "창고에 재고 있음";
+const WAREHOUSE_STOCK_OFF = "창고에 재고 없음";
+
+const SHELF_CATEGORIES = [
+  { value: "해열진통소염제", location: "1-L" },
+  { value: "안과용제 및 인공눈물", location: "1-L" },
+  { value: "우황청심원", location: "1-R" },
+  { value: "수면유도제", location: "1-R" },
+  { value: "근육이완제", location: "1-R" },
+  { value: "외용진통제(타박상)", location: "1-R" },
+  { value: "연고류 일반", location: "2-L" },
+  { value: "여성질환치료제", location: "2-L" },
+  { value: "경구피임약", location: "2-L" },
+  { value: "임신진단테스트기", location: "2-L" },
+  { value: "일반밴드", location: "2-R" },
+  { value: "항진균제(무좀)", location: "3-L" },
+  { value: "구강질환용제", location: "3-L" },
+  { value: "멀미약", location: "3-L" },
+  { value: "구충제", location: "3-L" },
+  { value: "습윤밴드", location: "3-R" },
+  { value: "항히스타민제", location: "4-L" },
+  { value: "알러지", location: "4-L" },
+  { value: "동물용 의약품", location: "4-R" },
+  { value: "치아 구강용제", location: "5-L" },
+  { value: "여성 건강기능식품(항산화, 갱년기 완화, 부종 개선)", location: "5-R" },
+  { value: "한방 감기약", location: "6-L" },
+  { value: "위장약", location: "6-R" },
+  { value: "소화제", location: "6-R" },
+  { value: "특수 한방제제", location: "7-L" },
+  { value: "지사제", location: "7-R" },
+  { value: "변비약", location: "7-R" },
+  { value: "관장약", location: "7-R" },
+  { value: "감기약1", location: "8-L" },
+  { value: "감기약2", location: "8-R" },
+  { value: "치질약", location: "9-L" },
+  { value: "지루성피부염(비듬)", location: "9-L" },
+  { value: "특수 한방제제", location: "9-R" },
+  { value: "어린이의약품", location: "10-L" },
+  { value: "어린이의약품", location: "10-R" },
+  { value: "염색약", location: "11-L" },
+  { value: "다한증치료제", location: "11-L" },
+  { value: "여름용품", location: "11-L" },
+  { value: "구강 및 입술 케어", location: "11-R" },
+  { value: "금연보조제", location: "11-R" },
+  { value: "소독용 에탄올 및 살균소독제", location: "12-L" },
+  { value: "어린이의약품", location: "12-R" },
+  { value: "의약외품", location: "13-L" },
+  { value: "의약외품", location: "13-R" },
+  { value: "파스", location: "PS" },
+  { value: "드링크", location: "DR" },
+];
+
+const CATEGORY_LOCATION = new Map();
+for (const item of SHELF_CATEGORIES) {
+  if (!CATEGORY_LOCATION.has(item.value)) CATEGORY_LOCATION.set(item.value, item.location);
+}
 
 const state = {
   products: [],
@@ -22,6 +80,7 @@ const els = {
   appMain: $("#appMain"),
   syncStatus: $("#syncStatus"),
   seedBtn: $("#seedBtn"),
+  addProductBtn: $("#addProductBtn"),
   searchInput: $("#searchInput"),
   categoryTabs: $("#categoryTabs"),
   locationFilter: $("#locationFilter"),
@@ -53,6 +112,7 @@ const fields = {
   officialName: $("#officialNameField"),
   location: $("#locationField"),
   stock: $("#stockField"),
+  warehouseStock: $("#warehouseStockField"),
   category: $("#categoryField"),
   price: $("#priceField"),
   manufacturer: $("#manufacturerField"),
@@ -158,7 +218,24 @@ function normalizeForSearch(value) {
 function initialLocation(category) {
   if (category.includes("파스")) return "PS";
   if (category.includes("드링크")) return "DR";
+  if (CATEGORY_LOCATION.has(category)) return CATEGORY_LOCATION.get(category);
   return "";
+}
+
+function normalizeStoreStock(value) {
+  if (value === "있음" || value === STORE_STOCK_ON) return STORE_STOCK_ON;
+  if (value === "없음" || value === STORE_STOCK_OFF) return STORE_STOCK_OFF;
+  return value || STORE_STOCK_ON;
+}
+
+function normalizeWarehouseStock(value) {
+  if (value === WAREHOUSE_STOCK_ON || value === "있음") return WAREHOUSE_STOCK_ON;
+  if (value === WAREHOUSE_STOCK_OFF || value === "없음") return WAREHOUSE_STOCK_OFF;
+  return value || WAREHOUSE_STOCK_OFF;
+}
+
+function stockIsOn(value, type = "store") {
+  return type === "warehouse" ? value === WAREHOUSE_STOCK_ON : value === STORE_STOCK_ON;
 }
 
 function categoryLabel(category) {
@@ -196,7 +273,8 @@ function createProducts(rows) {
       officialName: "",
       category,
       price: row["가격(원)"] || "",
-      stock: row["재고"] || "",
+      stock: normalizeStoreStock(row["재고"] || ""),
+      warehouseStock: WAREHOUSE_STOCK_OFF,
       manufacturer: row["제약회사"] || "",
       location: initialLocation(category),
       description: "",
@@ -234,7 +312,8 @@ function fromDbProduct(row) {
     officialName: row.official_name || "",
     category: row.category || "",
     price: row.price || "",
-    stock: row.stock || "",
+    stock: normalizeStoreStock(row.stock || ""),
+    warehouseStock: normalizeWarehouseStock(row.warehouse_stock || ""),
     manufacturer: row.manufacturer || "",
     location: row.location || "",
     description: row.description || "",
@@ -257,6 +336,7 @@ function toDbProduct(product) {
     category: product.category || "",
     price: product.price || "",
     stock: product.stock || "",
+    warehouse_stock: product.warehouseStock || WAREHOUSE_STOCK_OFF,
     manufacturer: product.manufacturer || "",
     location: product.location || "",
     description: product.description || "",
@@ -283,6 +363,7 @@ async function loadProductsFromSupabase({ preserveSelection = false, quiet = fal
   }
 
   els.seedBtn.classList.toggle("hidden", state.products.length > 0);
+  renderCategoryOptions();
   renderCategoryTabs();
   renderDetail();
   els.syncStatus.textContent = `동기화됨 ${state.lastLoadedAt.toLocaleTimeString("ko-KR", {
@@ -292,11 +373,11 @@ async function loadProductsFromSupabase({ preserveSelection = false, quiet = fal
 }
 
 async function saveProductToSupabase(product) {
-  const [row] = await supabaseFetch(`/rest/v1/products?id=eq.${encodeURIComponent(product.id)}&select=*`, {
-    method: "PATCH",
+  const [row] = await supabaseFetch("/rest/v1/products?on_conflict=id&select=*", {
+    method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Prefer: "return=representation",
+      Prefer: "resolution=merge-duplicates,return=representation",
     },
     body: JSON.stringify(toDbProduct(product)),
   });
@@ -353,6 +434,34 @@ function renderLocationOptions() {
     .join("");
 }
 
+function categoryOptions() {
+  const options = [];
+  const seen = new Set();
+  for (const item of SHELF_CATEGORIES) {
+    if (seen.has(item.value)) continue;
+    seen.add(item.value);
+    options.push(item.value);
+  }
+  for (const product of state.products) {
+    const category = product.category || "";
+    if (!category || seen.has(category)) continue;
+    seen.add(category);
+    options.push(category);
+  }
+  return options;
+}
+
+function renderCategoryOptions() {
+  fields.category.innerHTML = [
+    '<option value="">미분류</option>',
+    ...categoryOptions().map((category) => {
+      const location = CATEGORY_LOCATION.get(category);
+      const label = location ? `${category} · ${location}` : category;
+      return `<option value="${escapeHtml(category)}">${escapeHtml(label)}</option>`;
+    }),
+  ].join("");
+}
+
 function renderCategoryTabs() {
   const counts = new Map();
   for (const product of state.products) {
@@ -390,6 +499,8 @@ function productMatches(product) {
       product.manufacturer,
       product.description,
       product.location,
+      product.stock,
+      product.warehouseStock,
     ].join(" "),
   );
 
@@ -409,6 +520,7 @@ function formatMeta(product) {
     ["category", product.category],
     ["maker", product.manufacturer],
     ["stock", product.stock ? `재고 ${product.stock}` : ""],
+    ["warehouse", product.warehouseStock || WAREHOUSE_STOCK_OFF],
     ["price", product.price ? `${Number(product.price).toLocaleString("ko-KR")}원` : ""],
   ].filter(Boolean);
 
@@ -507,9 +619,16 @@ function renderResults() {
     node.dataset.id = product.id;
     node.style.setProperty("--cat", categoryColor(product.category || "미분류"));
     node.classList.toggle("active", product.id === state.selectedId);
+    node.classList.toggle("stock-off", !stockIsOn(product.stock));
     node.querySelector(".result-name").textContent = product.name;
     node.querySelector(".result-meta").innerHTML = formatMeta(product);
     node.querySelector(".location-badge").textContent = product.location || "미지정";
+    const storeToggle = node.querySelector('.stock-toggle[data-stock-type="store"]');
+    const warehouseToggle = node.querySelector('.stock-toggle[data-stock-type="warehouse"]');
+    storeToggle.textContent = product.stock || STORE_STOCK_OFF;
+    warehouseToggle.textContent = product.warehouseStock || WAREHOUSE_STOCK_OFF;
+    storeToggle.classList.toggle("is-on", stockIsOn(product.stock));
+    warehouseToggle.classList.toggle("is-on", stockIsOn(product.warehouseStock, "warehouse"));
     node.querySelector(".result-description").innerHTML = descriptionPreview(product);
     node.querySelector(".official-badge").outerHTML = officialBadge(product);
     const thumb = node.querySelector(".result-thumb");
@@ -525,6 +644,37 @@ function renderResults() {
 
 function selectedProduct() {
   return state.products.find((product) => product.id === state.selectedId) || null;
+}
+
+async function addNewProduct() {
+  const product = {
+    id: `drug-custom-${Date.now()}`,
+    name: "새 약품",
+    officialName: "",
+    category: "",
+    price: "",
+    stock: STORE_STOCK_ON,
+    warehouseStock: WAREHOUSE_STOCK_OFF,
+    manufacturer: "",
+    location: "",
+    description: "",
+    imageUrl: "",
+    sourceUrl: "",
+    sourceName: "",
+    itemSeq: "",
+    matchedScore: 0,
+    matchedAt: "",
+    updatedAt: new Date().toISOString(),
+  };
+  els.syncStatus.textContent = "새 약품 생성 중";
+  const saved = await saveProductToSupabase(product);
+  state.products.unshift(saved);
+  state.selectedId = saved.id;
+  renderCategoryTabs();
+  renderDetail();
+  fields.name.focus();
+  fields.name.select();
+  els.syncStatus.textContent = "새 약품 생성 완료";
 }
 
 function setDetailTab(tab) {
@@ -593,6 +743,7 @@ function renderDetail() {
   fields.officialName.value = product.officialName || "";
   fields.location.value = product.location || "";
   fields.stock.value = product.stock || "";
+  fields.warehouseStock.value = product.warehouseStock || "";
   fields.category.value = product.category || "";
   fields.price.value = product.price || "";
   fields.manufacturer.value = product.manufacturer || "";
@@ -617,6 +768,7 @@ async function updateSelectedProduct() {
     officialName: fields.officialName.value.trim(),
     location: fields.location.value,
     stock: fields.stock.value,
+    warehouseStock: fields.warehouseStock.value,
     category: fields.category.value.trim(),
     price: fields.price.value.trim(),
     manufacturer: fields.manufacturer.value.trim(),
@@ -628,6 +780,7 @@ async function updateSelectedProduct() {
 
   if (product.category.includes("파스")) product.location = "PS";
   if (product.category.includes("드링크")) product.location = "DR";
+  if (!product.location && CATEGORY_LOCATION.has(product.category)) product.location = CATEGORY_LOCATION.get(product.category);
 
   els.syncStatus.textContent = "저장 중";
   const saved = await saveProductToSupabase(product);
@@ -636,6 +789,22 @@ async function updateSelectedProduct() {
   renderCategoryTabs();
   renderDetail();
   els.syncStatus.textContent = "저장 완료";
+}
+
+async function toggleStock(product, type) {
+  if (type === "warehouse") {
+    product.warehouseStock = stockIsOn(product.warehouseStock, "warehouse") ? WAREHOUSE_STOCK_OFF : WAREHOUSE_STOCK_ON;
+  } else {
+    product.stock = stockIsOn(product.stock) ? STORE_STOCK_OFF : STORE_STOCK_ON;
+  }
+
+  els.syncStatus.textContent = "재고 저장 중";
+  const saved = await saveProductToSupabase(product);
+  const index = state.products.findIndex((item) => item.id === saved.id);
+  if (index >= 0) state.products[index] = saved;
+  renderResults();
+  if (state.selectedId === saved.id) renderDetail();
+  els.syncStatus.textContent = "재고 저장 완료";
 }
 
 function exportJson() {
@@ -666,6 +835,7 @@ async function importJson(file) {
 
 async function init() {
   renderLocationOptions();
+  renderCategoryOptions();
   showApp();
   await loadProductsFromSupabase();
   startSync();
@@ -674,6 +844,13 @@ async function init() {
 els.searchInput.addEventListener("input", renderResults);
 els.locationFilter.addEventListener("change", renderResults);
 els.stockFilter.addEventListener("change", renderResults);
+els.addProductBtn.addEventListener("click", () => {
+  addNewProduct().catch((error) => {
+    console.error(error);
+    els.syncStatus.textContent = "약품 추가 실패";
+    alert(`약품 추가에 실패했습니다: ${error.message}`);
+  });
+});
 els.categoryTabs.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-category]");
   if (!button) return;
@@ -682,8 +859,22 @@ els.categoryTabs.addEventListener("click", (event) => {
   renderResults();
 });
 els.results.addEventListener("click", (event) => {
+  const stockButton = event.target.closest(".stock-toggle");
+  if (stockButton) {
+    const card = event.target.closest(".result-card");
+    const product = state.products.find((item) => item.id === card?.dataset.id);
+    if (!product) return;
+    toggleStock(product, stockButton.dataset.stockType).catch((error) => {
+      console.error(error);
+      els.syncStatus.textContent = "재고 저장 실패";
+      alert(`재고 저장에 실패했습니다: ${error.message}`);
+    });
+    return;
+  }
+
   const card = event.target.closest(".result-card");
   if (!card) return;
+  if (!event.target.closest(".result-head")) return;
   state.selectedId = state.selectedId === card.dataset.id ? null : card.dataset.id;
   state.detailTab = "edit";
   renderDetail();
@@ -700,6 +891,8 @@ $("#resetBtn").addEventListener("click", async () => {
   const product = selectedProduct();
   if (!product) return;
   product.location = initialLocation(product.category);
+  product.stock = STORE_STOCK_ON;
+  product.warehouseStock = WAREHOUSE_STOCK_OFF;
   product.officialName = "";
   product.description = "";
   product.imageUrl = "";
@@ -730,6 +923,10 @@ els.importInput.addEventListener("change", async (event) => {
 fields.imageUrl.addEventListener("change", () => {
   els.drugImage.src = fields.imageUrl.value.trim();
   els.imageBox.classList.toggle("has-image", Boolean(fields.imageUrl.value.trim()));
+});
+fields.category.addEventListener("change", () => {
+  const category = fields.category.value;
+  if (CATEGORY_LOCATION.has(category)) fields.location.value = CATEGORY_LOCATION.get(category);
 });
 fields.imageFile.addEventListener("change", async (event) => {
   const [file] = event.target.files;

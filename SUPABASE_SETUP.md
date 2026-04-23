@@ -12,6 +12,13 @@ Supabase 대시보드에서 `SQL Editor`를 열고, 프로젝트 폴더의 `supa
 - `drug-images` 이미지 저장소
 - 이미지 업로드 정책
 
+이미 기존 테이블을 만든 뒤라면, 새 재고 기능을 위해 `supabase-inventory-update.sql`도 추가로 실행합니다.
+
+이 SQL은 다음을 추가합니다.
+
+- `warehouse_stock` 창고 재고 컬럼
+- 기존 `있음/없음` 값을 `재고 있음/재고 없음`으로 정리
+
 ## 2. 직원 계정 만들기
 
 Supabase 대시보드에서 `Authentication` -> `Users`로 이동합니다.

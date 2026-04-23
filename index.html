@@ -15,6 +15,7 @@
       <div class="top-actions">
         <span id="syncStatus" class="sync-status">오프라인 준비 중</span>
         <button id="seedBtn" type="button" class="hidden">초기 데이터 등록</button>
+        <button id="addProductBtn" type="button">약품 추가</button>
         <button id="exportBtn" type="button">내보내기</button>
         <label class="file-button">
           가져오기
@@ -35,8 +36,8 @@
           </select>
           <select id="stockFilter" aria-label="재고 필터">
             <option value="">전체 재고</option>
-            <option value="있음">재고 있음</option>
-            <option value="없음">재고 없음</option>
+            <option value="재고 있음">재고 있음</option>
+            <option value="재고 없음">재고 없음</option>
           </select>
         </div>
         <div id="results" class="results" aria-live="polite"></div>
@@ -89,8 +90,16 @@
             <label>
               재고
               <select id="stockField" name="stock">
-                <option value="있음">있음</option>
-                <option value="없음">없음</option>
+                <option value="재고 있음">재고 있음</option>
+                <option value="재고 없음">재고 없음</option>
+                <option value="">미확인</option>
+              </select>
+            </label>
+            <label>
+              창고 재고
+              <select id="warehouseStockField" name="warehouseStock">
+                <option value="창고에 재고 있음">창고에 재고 있음</option>
+                <option value="창고에 재고 없음">창고에 재고 없음</option>
                 <option value="">미확인</option>
               </select>
             </label>
@@ -99,7 +108,7 @@
           <div class="field-grid">
             <label>
               카테고리
-              <input id="categoryField" name="category" />
+              <select id="categoryField" name="category"></select>
             </label>
             <label>
               가격
@@ -133,14 +142,18 @@
     </main>
 
     <template id="resultTemplate">
-      <button class="result-card" type="button">
+      <article class="result-card">
         <span class="result-body">
-          <span class="result-head">
+          <button class="result-head" type="button">
             <span class="result-main">
               <strong class="result-name"></strong>
               <span class="result-meta"></span>
             </span>
             <span class="location-badge"></span>
+          </button>
+          <span class="stock-actions" aria-label="재고 빠른 수정">
+            <button class="stock-toggle store" type="button" data-stock-type="store"></button>
+            <button class="stock-toggle warehouse" type="button" data-stock-type="warehouse"></button>
           </span>
           <span class="result-expanded">
             <span class="result-thumb-wrap">
@@ -153,7 +166,7 @@
             </span>
           </span>
         </span>
-      </button>
+      </article>
     </template>
 
     <script src="./app.js"></script>

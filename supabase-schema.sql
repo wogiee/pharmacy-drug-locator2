@@ -9,6 +9,7 @@ create table if not exists public.products (
   category text default '',
   price text default '',
   stock text default '',
+  warehouse_stock text default '창고에 재고 없음',
   manufacturer text default '',
   location text default '',
   description text default '',

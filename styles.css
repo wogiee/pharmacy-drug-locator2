@@ -294,6 +294,17 @@ textarea {
     #162331;
 }
 
+.result-card.stock-off {
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08), transparent 42%),
+    #101720;
+  opacity: 0.72;
+}
+
+.result-card.stock-off .result-name {
+  color: #cbd5e1;
+}
+
 .result-body {
   display: grid;
   gap: 10px;
@@ -308,6 +319,16 @@ textarea {
   gap: 12px;
   width: 100%;
   min-width: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  color: inherit;
+}
+
+.result-head:hover {
+  background: transparent;
+  border-color: transparent;
 }
 
 .result-main {
@@ -345,6 +366,29 @@ textarea {
   padding-top: 10px;
   min-width: 0;
   overflow: hidden;
+}
+
+.stock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stock-toggle {
+  min-height: 34px;
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 13px;
+  font-weight: 800;
+  background: rgba(15, 23, 42, 0.9);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.stock-toggle.is-on {
+  background: rgba(94, 234, 212, 0.15);
+  color: #bffdf3;
+  border-color: rgba(94, 234, 212, 0.4);
 }
 
 .result-card.active .result-expanded {
@@ -424,6 +468,12 @@ textarea {
   background: rgba(94, 234, 212, 0.13);
   border-color: rgba(94, 234, 212, 0.32);
   color: #bffdf3;
+}
+
+.meta-chip.warehouse {
+  background: rgba(147, 197, 253, 0.12);
+  border-color: rgba(147, 197, 253, 0.26);
+  color: #dbeafe;
 }
 
 .meta-chip.price {
