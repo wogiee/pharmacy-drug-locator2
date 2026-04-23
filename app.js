@@ -787,7 +787,11 @@ function productMatches(product) {
   );
 
   if (query && !searchHaystack.includes(query)) return false;
-  if (category && product.category !== category) return false;
+  if (category === "미분류") {
+    if (categoryLabel(product.category || "") !== "미분류") return false;
+  } else if (category && product.category !== category) {
+    return false;
+  }
   if (location === "__UNSET__") return !product.location;
   if (location && product.location !== location) return false;
   if (stock && product.stock !== stock) return false;
