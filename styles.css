@@ -778,6 +778,19 @@ form {
   gap: 12px;
 }
 
+.form-top-grid {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.form-main-fields {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -808,6 +821,12 @@ label textarea {
   border-radius: 8px;
   background: #0c131b;
   color: var(--muted);
+}
+
+.compact-image-box {
+  min-height: 132px;
+  width: 132px;
+  justify-self: start;
 }
 
 .image-box img {
@@ -879,6 +898,16 @@ label textarea {
 
   .field-grid {
     grid-template-columns: 1fr;
+  }
+
+  .form-top-grid {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .compact-image-box {
+    min-height: 88px;
+    width: 88px;
   }
 
   .result-head {
