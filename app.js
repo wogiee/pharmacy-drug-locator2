@@ -1109,6 +1109,7 @@ async function updateSelectedProduct() {
   renderLocationFilterOptions();
   renderDetail();
   els.syncStatus.textContent = "저장되었습니다";
+  window.alert("저장되었습니다");
 }
 
 async function toggleStock(product, type) {
