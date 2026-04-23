@@ -328,7 +328,7 @@ textarea {
 
 .result-head {
   display: grid;
-  grid-template-columns: 104px minmax(0, 1fr) 104px;
+  grid-template-columns: 104px minmax(0, 1fr) 70px;
   align-items: center;
   gap: 12px;
   width: 100%;
@@ -595,8 +595,8 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 104px;
-  min-height: 104px;
+  width: 70px;
+  min-height: 70px;
   border-radius: 10px;
   background: linear-gradient(135deg, rgba(251, 191, 36, 0.24), rgba(249, 115, 22, 0.24));
   color: #fff7d6;
@@ -890,7 +890,7 @@ label textarea {
   }
 
   .result-head {
-    grid-template-columns: 84px minmax(0, 1fr) 84px;
+    grid-template-columns: 84px minmax(0, 1fr) 54px;
     gap: 10px;
   }
 
@@ -905,8 +905,9 @@ label textarea {
   }
 
   .location-badge {
-    width: 84px;
-    min-height: 84px;
+    width: 54px;
+    min-height: 54px;
+    font-size: 12px;
   }
 
   .drug-facts {

@@ -92,30 +92,85 @@ const AUTO_CATEGORY_RULES = [
 ];
 
 const INFERRED_CATEGORY_LOCATIONS = {
-  유산균: "14-L",
-  "은행잎, 뇌영양제": "14-L",
-  오메가3: "14-L",
-  눈영양제: "14-L",
-  관절약: "14-R",
-  비타민C: "14-R",
-  비타민D: "14-R",
-  "혈압, 혈행, 혈당건강": "14-R",
-  "남성 배뇨": "15-L",
-  아르기닌: "15-L",
-  밀크시슬: "15-L",
-  탈모치료제: "15-L",
-  마그네슘: "15-R",
-  종합영양제: "15-R",
-  드링크제: "DR",
-  파스류: "PS",
-  보호대: "15-R",
-  마스크: "15-R",
+  유산균: "유산균",
+  "은행잎, 뇌영양제": "은행잎, 뇌영양제",
+  오메가3: "오메가3",
+  눈영양제: "눈영양제",
+  관절약: "관절약",
+  비타민C: "비타민C",
+  비타민D: "비타민D",
+  "혈압, 혈행, 혈당건강": "혈압, 혈행, 혈당건강",
+  "남성 배뇨": "남성 배뇨",
+  아르기닌: "아르기닌",
+  밀크시슬: "밀크시슬",
+  탈모치료제: "탈모치료제",
+  마그네슘: "마그네슘",
+  종합영양제: "종합영양제 1",
+  드링크제: "드링크제",
+  파스류: "파스류",
+  의약외품: "의약외품",
+  보호대: "보호대1",
+  마스크: "마스크",
 };
+
+const EXTRA_LOCATION_OPTIONS = [
+  "유산균",
+  "은행잎, 뇌영양제",
+  "오메가3",
+  "눈영양제",
+  "관절약",
+  "비타민C",
+  "비타민D",
+  "혈압, 혈행, 혈당건강",
+  "남성 배뇨",
+  "아르기닌",
+  "밀크시슬",
+  "탈모치료제",
+  "마그네슘",
+  "종합영양제 1",
+  "종합영양제 2",
+  "드링크제",
+  "파스류",
+  "의약외품",
+  "보호대1",
+  "보호대2",
+  "보호대3",
+  "마스크",
+];
 
 const CATEGORY_LOCATION = new Map();
 for (const item of SHELF_CATEGORIES) {
   if (!CATEGORY_LOCATION.has(item.value)) CATEGORY_LOCATION.set(item.value, item.location);
 }
+
+const LOCATION_HELP_TEXT = {
+  "1-L": "해열진통소염제, 안과용제 및 인공눈물",
+  "1-R": "우황청심원, 수면유도제, 근육이완제, 외용진통제(타박상)",
+  "2-L": "연고류 일반, 여성질환치료제, 경구피임약, 임신진단테스트기",
+  "2-R": "일반밴드",
+  "3-L": "항진균제(무좀), 구강질환용제, 멀미약, 구충제",
+  "3-R": "습윤밴드",
+  "4-L": "항히스타민제, 알러지",
+  "4-R": "동물용 의약품",
+  "5-L": "치아 구강용제",
+  "5-R": "여성 건강기능식품(항산화, 갱년기 완화, 부종 개선)",
+  "6-L": "한방 감기약",
+  "6-R": "위장약, 소화제",
+  "7-L": "특수 한방제제",
+  "7-R": "지사제, 변비약, 관장약",
+  "8-L": "감기약1",
+  "8-R": "감기약2",
+  "9-L": "치질약, 지루성피부염(비듬)",
+  "9-R": "특수 한방제제",
+  "10-L": "어린이의약품",
+  "10-R": "어린이의약품",
+  "11-L": "염색약, 다한증치료제, 여름용품",
+  "11-R": "구강 및 입술 케어, 금연보조제",
+  "12-L": "소독용 에탄올 및 살균소독제",
+  "12-R": "어린이의약품",
+  "13-L": "의약외품",
+  "13-R": "의약외품",
+};
 
 const state = {
   products: [],
@@ -291,7 +346,14 @@ function inferCategoryFromName(name) {
 function inferLocationForProduct(name, category) {
   const cleanCategory = categoryLabel(category);
   const cleanName = String(name || "");
-  if (cleanCategory.includes("소염진통제") || cleanName.includes("소염진통제")) return "1-L";
+  if (
+    cleanCategory.includes("소염진통제") ||
+    cleanCategory.includes("진통소염제") ||
+    cleanName.includes("소염진통제") ||
+    cleanName.includes("진통소염제")
+  ) {
+    return "1-L";
+  }
   if (cleanCategory.includes("파스")) return "PS";
   if (cleanCategory.includes("드링크")) return "DR";
   if (CATEGORY_LOCATION.has(cleanCategory)) return CATEGORY_LOCATION.get(cleanCategory);
@@ -565,6 +627,7 @@ async function loadProductsFromSupabase({ preserveSelection = false, quiet = fal
   els.seedBtn.classList.toggle("hidden", state.products.length > 0);
   renderCategoryOptions();
   renderCategoryTabs();
+  renderLocationFilterOptions();
   renderDetail();
   els.syncStatus.textContent = `동기화됨 ${state.lastLoadedAt.toLocaleTimeString("ko-KR", {
     hour: "2-digit",
@@ -631,16 +694,38 @@ function locationOptions() {
   for (let shelf = 1; shelf <= 15; shelf += 1) {
     shelfOptions.push(`${shelf}-L`, `${shelf}-R`);
   }
-  return ["", "PS", "DR", ...shelfOptions];
+  return ["", "PS", "DR", ...shelfOptions, ...EXTRA_LOCATION_OPTIONS];
+}
+
+function locationOptionLabel(location) {
+  if (!location) return "미지정";
+  if (LOCATION_HELP_TEXT[location]) return `${location} (${LOCATION_HELP_TEXT[location]})`;
+  return location;
+}
+
+function displayLocation(location) {
+  return location || "미지정";
 }
 
 function renderLocationOptions() {
   fields.location.innerHTML = locationOptions()
     .map((location) => {
-      const label = location || "미지정";
-      return `<option value="${location}">${label}</option>`;
+      return `<option value="${escapeHtml(location)}">${escapeHtml(locationOptionLabel(location))}</option>`;
     })
     .join("");
+}
+
+function renderLocationFilterOptions() {
+  const values = new Set(locationOptions().filter(Boolean));
+  for (const product of state.products) {
+    if (product.location) values.add(product.location);
+  }
+
+  els.locationFilter.innerHTML = [
+    '<option value="">전체 위치</option>',
+    '<option value="__UNSET__">미지정</option>',
+    ...[...values].map((location) => `<option value="${escapeHtml(location)}">${escapeHtml(displayLocation(location))}</option>`),
+  ].join("");
 }
 
 function categoryOptions() {
@@ -715,6 +800,7 @@ function productMatches(product) {
 
   if (query && !searchHaystack.includes(query)) return false;
   if (category && product.category !== category) return false;
+  if (location === "__UNSET__") return !product.location;
   if (location && product.location !== location) return false;
   if (stock && product.stock !== stock) return false;
   if (shelf === "PS" || shelf === "DR") return product.location === shelf;
@@ -834,7 +920,7 @@ function renderResults() {
     node.classList.toggle("stock-off", !stockIsOn(product.stock));
     node.querySelector(".result-name").textContent = product.name;
     node.querySelector(".result-meta").innerHTML = formatMeta(product);
-    node.querySelector(".location-badge").textContent = product.location || "미지정";
+    node.querySelector(".location-badge").textContent = displayLocation(product.location);
     const titleThumb = node.querySelector(".title-thumb");
     titleThumb.alt = product.name;
     titleThumb.src = product.imageUrl || "";
@@ -955,7 +1041,7 @@ function renderDetail() {
   els.detailTitle.textContent = product.name;
   els.detailCategory.textContent = `${categoryEmoji(category)} ${categoryLabel(category)}`;
   els.detailCategory.style.setProperty("--cat", categoryColor(category));
-  els.factLocation.textContent = product.location || "미지정";
+  els.factLocation.textContent = displayLocation(product.location);
   els.factStock.textContent = product.stock || "미확인";
   els.factOfficialName.textContent = displayValue(product.officialName);
   els.factManufacturer.textContent = displayValue(product.manufacturer);
