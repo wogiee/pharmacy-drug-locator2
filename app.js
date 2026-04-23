@@ -290,6 +290,8 @@ function inferCategoryFromName(name) {
 
 function inferLocationForProduct(name, category) {
   const cleanCategory = categoryLabel(category);
+  const cleanName = String(name || "");
+  if (cleanCategory.includes("소염진통제") || cleanName.includes("소염진통제")) return "1-L";
   if (cleanCategory.includes("파스")) return "PS";
   if (cleanCategory.includes("드링크")) return "DR";
   if (CATEGORY_LOCATION.has(cleanCategory)) return CATEGORY_LOCATION.get(cleanCategory);
