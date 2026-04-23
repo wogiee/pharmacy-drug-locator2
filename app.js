@@ -88,6 +88,7 @@ const els = {
   results: $("#results"),
   template: $("#resultTemplate"),
   form: $("#detailForm"),
+  formHome: $("#formHome"),
   exportBtn: $("#exportBtn"),
   importInput: $("#importInput"),
   imageBox: $(".image-box"),
@@ -516,13 +517,8 @@ function productMatches(product) {
 
 function formatMeta(product) {
   const parts = [
-    ["official", product.officialName && product.officialName !== product.name ? product.officialName : ""],
-    ["category", product.category],
-    ["maker", product.manufacturer],
-    ["stock", product.stock ? `재고 ${product.stock}` : ""],
-    ["warehouse", product.warehouseStock || WAREHOUSE_STOCK_OFF],
-    ["price", product.price ? `${Number(product.price).toLocaleString("ko-KR")}원` : ""],
-  ].filter(Boolean);
+    ["category", product.category || "미분류"],
+  ];
 
   return parts
     .filter(([, value]) => value)
@@ -619,6 +615,7 @@ function renderResults() {
     node.dataset.id = product.id;
     node.style.setProperty("--cat", categoryColor(product.category || "미분류"));
     node.classList.toggle("active", product.id === state.selectedId);
+    node.classList.toggle("editing", product.id === state.selectedId && state.detailTab === "edit");
     node.classList.toggle("stock-off", !stockIsOn(product.stock));
     node.querySelector(".result-name").textContent = product.name;
     node.querySelector(".result-meta").innerHTML = formatMeta(product);
@@ -644,6 +641,28 @@ function renderResults() {
 
 function selectedProduct() {
   return state.products.find((product) => product.id === state.selectedId) || null;
+}
+
+function moveEditFormHome() {
+  if (els.form.parentElement !== els.formHome) {
+    els.formHome.appendChild(els.form);
+  }
+}
+
+function placeEditForm() {
+  if (state.selectedId && state.detailTab === "edit") {
+    const cards = [...els.results.querySelectorAll(".result-card")];
+    const card = cards.find((item) => item.dataset.id === state.selectedId);
+    const host = card?.querySelector(".inline-form-host");
+    if (host) {
+      host.appendChild(els.form);
+      els.form.classList.remove("hidden");
+      return;
+    }
+  }
+
+  moveEditFormHome();
+  els.form.classList.add("hidden");
 }
 
 async function addNewProduct() {
@@ -681,7 +700,7 @@ async function addNewProduct() {
 function setDetailTab(tab) {
   state.detailTab = tab;
   els.descriptionView.classList.add("hidden");
-  els.form.classList.toggle("hidden", !(state.selectedId && tab === "edit"));
+  placeEditForm();
 }
 
 function displayValue(value, fallback = "미입력") {
@@ -707,8 +726,8 @@ function renderDetail() {
     els.drugImage.src = "";
     els.imageBox.classList.remove("has-image");
     applyOfficialBadge(els.factOfficialBadge, {});
-    setDetailTab("view");
     renderResults();
+    setDetailTab("view");
     return;
   }
 
@@ -756,8 +775,8 @@ function renderDetail() {
   els.drugImage.alt = product.name;
   els.drugImage.src = product.imageUrl || "";
   els.imageBox.classList.toggle("has-image", Boolean(product.imageUrl));
-  setDetailTab(state.detailTab);
   renderResults();
+  setDetailTab(state.detailTab);
 }
 
 async function updateSelectedProduct() {
@@ -808,12 +827,48 @@ async function toggleStock(product, type) {
   els.syncStatus.textContent = "재고 저장 완료";
 }
 
-function exportJson() {
-  const blob = new Blob([JSON.stringify(state.products, null, 2)], { type: "application/json" });
+function excelCell(value) {
+  return escapeHtml(value || "").replace(/\n/g, "<br>");
+}
+
+function exportExcel() {
+  const columns = [
+    ["약품명", "name"],
+    ["공식 제품명", "officialName"],
+    ["카테고리", "category"],
+    ["위치", "location"],
+    ["매장 재고", "stock"],
+    ["창고 재고", "warehouseStock"],
+    ["가격", "price"],
+    ["제조사/수입사", "manufacturer"],
+    ["이미지 URL", "imageUrl"],
+    ["출처 URL", "sourceUrl"],
+    ["상세설명", "description"],
+  ];
+  const tableRows = state.products
+    .map(
+      (product) => `<tr>${columns.map(([, key]) => `<td>${excelCell(product[key])}</td>`).join("")}</tr>`,
+    )
+    .join("");
+  const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <table>
+      <thead>
+        <tr>${columns.map(([label]) => `<th>${escapeHtml(label)}</th>`).join("")}</tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  </body>
+</html>`;
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `pharmacy-products-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `pharmacy-products-${new Date().toISOString().slice(0, 10)}.xls`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -860,16 +915,6 @@ els.categoryTabs.addEventListener("click", (event) => {
   renderResults();
 });
 els.results.addEventListener("click", (event) => {
-  const editButton = event.target.closest(".edit-product-btn");
-  if (editButton) {
-    const card = event.target.closest(".result-card");
-    if (!card) return;
-    state.selectedId = card.dataset.id;
-    state.detailTab = "edit";
-    renderDetail();
-    return;
-  }
-
   const stockButton = event.target.closest(".stock-toggle");
   if (stockButton) {
     const card = event.target.closest(".result-card");
@@ -886,8 +931,9 @@ els.results.addEventListener("click", (event) => {
   const card = event.target.closest(".result-card");
   if (!card) return;
   if (!event.target.closest(".result-head")) return;
-  state.selectedId = state.selectedId === card.dataset.id ? null : card.dataset.id;
-  state.detailTab = "view";
+  const isClosing = state.selectedId === card.dataset.id;
+  state.selectedId = isClosing ? null : card.dataset.id;
+  state.detailTab = isClosing ? "view" : "edit";
   renderDetail();
 });
 els.form.addEventListener("submit", (event) => {
@@ -919,7 +965,7 @@ $("#resetBtn").addEventListener("click", async () => {
     alert(`초기화에 실패했습니다: ${error.message}`);
   }
 });
-els.exportBtn.addEventListener("click", exportJson);
+els.exportBtn.addEventListener("click", exportExcel);
 els.importInput.addEventListener("change", async (event) => {
   const [file] = event.target.files;
   if (!file) return;

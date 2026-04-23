@@ -61,6 +61,7 @@
           <span id="factSource"></span>
         </section>
 
+        <div id="formHome"></div>
         <form id="detailForm" class="hidden">
           <div class="image-box edit-image-box">
             <img id="drugImage" alt="" />
@@ -131,7 +132,10 @@
             <input id="sourceUrlField" name="sourceUrl" placeholder="식약처 또는 약학정보원 URL" />
           </label>
 
-          <input id="descriptionField" name="description" type="hidden" />
+          <label>
+            상세설명
+            <textarea id="descriptionField" name="description" rows="8" placeholder="효능, 사용법, 주의사항 등을 입력"></textarea>
+          </label>
 
           <div class="form-actions">
             <button id="saveBtn" type="submit">수정 저장</button>
@@ -143,32 +147,34 @@
 
     <template id="resultTemplate">
       <article class="result-card">
-        <span class="result-body">
+        <div class="result-body">
           <button class="result-head" type="button">
             <span class="result-main">
               <strong class="result-name"></strong>
-              <span class="result-meta"></span>
             </span>
             <span class="location-badge"></span>
           </button>
-          <span class="stock-actions" aria-label="재고 빠른 수정">
-            <button class="stock-toggle store" type="button" data-stock-type="store"></button>
-            <button class="stock-toggle warehouse" type="button" data-stock-type="warehouse"></button>
-          </span>
-          <span class="result-expanded">
+          <div class="title-actions">
+            <span class="result-meta"></span>
+            <span class="stock-actions" aria-label="재고 빠른 수정">
+              <button class="stock-toggle store" type="button" data-stock-type="store"></button>
+              <button class="stock-toggle warehouse" type="button" data-stock-type="warehouse"></button>
+            </span>
+          </div>
+          <div class="result-expanded">
             <span class="result-thumb-wrap">
               <img class="result-thumb" alt="" />
               <span class="result-thumb-empty">이미지 없음</span>
             </span>
-            <span class="result-detail">
+            <div class="result-detail">
               <span class="expanded-actions">
                 <span class="official-badge"></span>
-                <button class="edit-product-btn" type="button">수정</button>
               </span>
+              <div class="inline-form-host"></div>
               <span class="result-description"></span>
-            </span>
-          </span>
-        </span>
+            </div>
+          </div>
+        </div>
       </article>
     </template>
 
