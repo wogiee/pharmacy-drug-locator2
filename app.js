@@ -56,6 +56,45 @@ const SHELF_CATEGORIES = [
   { value: "의약외품", location: "13-R" },
   { value: "파스", location: "PS" },
   { value: "드링크", location: "DR" },
+  { value: "유산균", location: "" },
+  { value: "은행잎, 뇌영양제", location: "" },
+  { value: "오메가3", location: "" },
+  { value: "눈영양제", location: "" },
+  { value: "관절약", location: "" },
+  { value: "비타민C", location: "" },
+  { value: "비타민D", location: "" },
+  { value: "혈압, 혈행, 혈당건강", location: "" },
+  { value: "남성 배뇨", location: "" },
+  { value: "아르기닌", location: "" },
+  { value: "밀크시슬", location: "" },
+  { value: "탈모치료제", location: "" },
+  { value: "마그네슘", location: "" },
+  { value: "종합영양제", location: "" },
+  { value: "드링크제", location: "DR" },
+  { value: "파스류", location: "PS" },
+  { value: "보호대", location: "" },
+  { value: "마스크", location: "" },
+];
+
+const AUTO_CATEGORY_RULES = [
+  ["유산균", ["유산균", "프로바이오", "락토", "비오틱"]],
+  ["은행잎, 뇌영양제", ["은행", "징코", "기억", "뇌영양"]],
+  ["오메가3", ["오메가", "omega"]],
+  ["눈영양제", ["루테인", "지아잔틴", "눈", "아이", "빌베리"]],
+  ["관절약", ["관절", "글루코사민", "콘드로이친", "msm"]],
+  ["비타민C", ["비타민c", "비타민 c", "아스코르빈"]],
+  ["비타민D", ["비타민d", "비타민 d", "디카맥스", "칼슘"]],
+  ["혈압, 혈행, 혈당건강", ["혈압", "혈행", "혈당", "코엔자임", "코큐텐", "바나바"]],
+  ["남성 배뇨", ["전립", "쏘팔메토", "배뇨"]],
+  ["아르기닌", ["아르기닌", "arginine"]],
+  ["밀크시슬", ["밀크시슬", "실리마린", "간"]],
+  ["탈모치료제", ["탈모", "미녹시딜", "마이녹실", "판시딜"]],
+  ["마그네슘", ["마그네슘", "magnesium"]],
+  ["종합영양제", ["종합", "멀티비타민", "멀티 비타민"]],
+  ["드링크제", ["드링크", "박카스", "비타500", "원비", "활명수"]],
+  ["파스류", ["파스", "플라스타", "카타플라스마"]],
+  ["보호대", ["보호대", "밴드", "서포터"]],
+  ["마스크", ["마스크", "kf94", "kf80"]],
 ];
 
 const CATEGORY_LOCATION = new Map();
@@ -112,14 +151,9 @@ const fields = {
   name: $("#nameField"),
   officialName: $("#officialNameField"),
   location: $("#locationField"),
-  stock: $("#stockField"),
-  warehouseStock: $("#warehouseStockField"),
   category: $("#categoryField"),
   price: $("#priceField"),
   manufacturer: $("#manufacturerField"),
-  imageUrl: $("#imageUrlField"),
-  sourceUrl: $("#sourceUrlField"),
-  description: $("#descriptionField"),
   imageFile: $("#imageFileField"),
 };
 
@@ -198,6 +232,11 @@ function showApp() {
 function startSync() {
   stopSync();
   state.syncTimer = window.setInterval(() => {
+    if (isEditingProduct()) {
+      els.syncStatus.textContent = "수정 중 · 자동 동기화 잠시 멈춤";
+      return;
+    }
+
     loadProductsFromSupabase({ preserveSelection: true, quiet: true }).catch((error) => {
       console.error(error);
       els.syncStatus.textContent = "동기화 실패";
@@ -221,6 +260,21 @@ function initialLocation(category) {
   if (category.includes("드링크")) return "DR";
   if (CATEGORY_LOCATION.has(category)) return CATEGORY_LOCATION.get(category);
   return "";
+}
+
+function inferCategoryFromName(name) {
+  const normalized = normalizeForSearch(name);
+  if (!normalized) return "";
+
+  for (const [category, keywords] of AUTO_CATEGORY_RULES) {
+    if (keywords.some((keyword) => normalized.includes(normalizeForSearch(keyword)))) return category;
+  }
+
+  return "";
+}
+
+function isEditingProduct() {
+  return state.detailTab === "edit" && !els.form.classList.contains("hidden");
 }
 
 function normalizeStoreStock(value) {
@@ -456,9 +510,7 @@ function renderCategoryOptions() {
   fields.category.innerHTML = [
     '<option value="">미분류</option>',
     ...categoryOptions().map((category) => {
-      const location = CATEGORY_LOCATION.get(category);
-      const label = location ? `${category} · ${location}` : category;
-      return `<option value="${escapeHtml(category)}">${escapeHtml(label)}</option>`;
+      return `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`;
     }),
   ].join("");
 }
@@ -518,6 +570,7 @@ function productMatches(product) {
 function formatMeta(product) {
   const parts = [
     ["category", product.category || "미분류"],
+    ["price", formatPrice(product.price)],
   ];
 
   return parts
@@ -602,6 +655,11 @@ function escapeHtml(value) {
   });
 }
 
+function formatPrice(value) {
+  const digits = String(value || "").replace(/[^\d]/g, "");
+  return digits ? `${Number(digits).toLocaleString("ko-KR")}원` : "";
+}
+
 function renderResults() {
   const filtered = state.products.filter(productMatches);
   els.results.innerHTML = "";
@@ -620,6 +678,9 @@ function renderResults() {
     node.querySelector(".result-name").textContent = product.name;
     node.querySelector(".result-meta").innerHTML = formatMeta(product);
     node.querySelector(".location-badge").textContent = product.location || "미지정";
+    const titleThumb = node.querySelector(".title-thumb");
+    titleThumb.alt = product.name;
+    titleThumb.src = product.imageUrl || "";
     const storeToggle = node.querySelector('.stock-toggle[data-stock-type="store"]');
     const warehouseToggle = node.querySelector('.stock-toggle[data-stock-type="warehouse"]');
     storeToggle.textContent = STORE_STOCK_ON;
@@ -741,7 +802,7 @@ function renderDetail() {
   els.factStock.textContent = product.stock || "미확인";
   els.factOfficialName.textContent = displayValue(product.officialName);
   els.factManufacturer.textContent = displayValue(product.manufacturer);
-  els.factPrice.textContent = product.price ? `${Number(product.price).toLocaleString("ko-KR")}원` : "미입력";
+  els.factPrice.textContent = formatPrice(product.price) || "미입력";
   els.factDescription.innerHTML = descriptionPreview(product, Infinity);
   applyOfficialBadge(els.factOfficialBadge, product);
   const score = Number(product.matchedScore || 0);
@@ -762,15 +823,10 @@ function renderDetail() {
   fields.name.value = product.name;
   fields.officialName.value = product.officialName || "";
   fields.location.value = product.location || "";
-  fields.stock.value = product.stock || "";
-  fields.warehouseStock.value = product.warehouseStock || "";
   fields.category.value = product.category || "";
   fields.price.value = product.price || "";
   fields.manufacturer.value = product.manufacturer || "";
-  fields.imageUrl.value = product.imageUrl || "";
   fields.imageFile.value = "";
-  fields.sourceUrl.value = product.sourceUrl || "";
-  fields.description.value = product.description || "";
 
   els.drugImage.alt = product.name;
   els.drugImage.src = product.imageUrl || "";
@@ -783,18 +839,16 @@ async function updateSelectedProduct() {
   const product = selectedProduct();
   if (!product) return;
 
+  const inferredCategory = inferCategoryFromName(fields.name.value.trim());
+  const chosenCategory = fields.category.value.trim() || inferredCategory;
+
   Object.assign(product, {
     name: fields.name.value.trim(),
     officialName: fields.officialName.value.trim(),
     location: fields.location.value,
-    stock: fields.stock.value,
-    warehouseStock: fields.warehouseStock.value,
-    category: fields.category.value.trim(),
+    category: chosenCategory,
     price: fields.price.value.trim(),
     manufacturer: fields.manufacturer.value.trim(),
-    imageUrl: fields.imageUrl.value.trim(),
-    sourceUrl: fields.sourceUrl.value.trim(),
-    description: fields.description.value.trim(),
     updatedAt: new Date().toISOString(),
   });
 
@@ -948,12 +1002,7 @@ $("#resetBtn").addEventListener("click", async () => {
   const product = selectedProduct();
   if (!product) return;
   product.location = initialLocation(product.category);
-  product.stock = STORE_STOCK_ON;
-  product.warehouseStock = WAREHOUSE_STOCK_OFF;
   product.officialName = "";
-  product.description = "";
-  product.imageUrl = "";
-  product.sourceUrl = "";
   product.updatedAt = new Date().toISOString();
   try {
     const saved = await saveProductToSupabase(product);
@@ -977,13 +1026,16 @@ els.importInput.addEventListener("change", async (event) => {
     event.target.value = "";
   }
 });
-fields.imageUrl.addEventListener("change", () => {
-  els.drugImage.src = fields.imageUrl.value.trim();
-  els.imageBox.classList.toggle("has-image", Boolean(fields.imageUrl.value.trim()));
-});
 fields.category.addEventListener("change", () => {
   const category = fields.category.value;
   if (CATEGORY_LOCATION.has(category)) fields.location.value = CATEGORY_LOCATION.get(category);
+});
+fields.name.addEventListener("input", () => {
+  const inferredCategory = inferCategoryFromName(fields.name.value);
+  if (!fields.category.value && inferredCategory) {
+    fields.category.value = inferredCategory;
+    if (CATEGORY_LOCATION.has(inferredCategory)) fields.location.value = CATEGORY_LOCATION.get(inferredCategory);
+  }
 });
 fields.imageFile.addEventListener("change", async (event) => {
   const [file] = event.target.files;
@@ -1003,7 +1055,8 @@ fields.imageFile.addEventListener("change", async (event) => {
     const imageUrl = await uploadImageToSupabase(path, imageBlob);
     product.imageUrl = imageUrl;
     product.updatedAt = new Date().toISOString();
-    fields.imageUrl.value = imageUrl;
+    els.drugImage.src = imageUrl;
+    els.imageBox.classList.add("has-image");
     const saved = await saveProductToSupabase(product);
     const index = state.products.findIndex((item) => item.id === saved.id);
     if (index >= 0) state.products[index] = saved;
