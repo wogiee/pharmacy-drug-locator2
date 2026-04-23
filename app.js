@@ -50,6 +50,24 @@ const SHELF_CATEGORIES = [
   { value: "금연보조제", location: "11-R" },
   { value: "소독용 에탄올 및 살균소독제", location: "12-L" },
   { value: "의약외품", location: "13-L" },
+  { value: "유산균", location: "" },
+  { value: "은행잎, 뇌영양제", location: "" },
+  { value: "오메가3", location: "" },
+  { value: "눈영양제", location: "" },
+  { value: "관절약", location: "" },
+  { value: "비타민C", location: "" },
+  { value: "비타민D", location: "" },
+  { value: "혈압, 혈행, 혈당건강", location: "" },
+  { value: "남성 배뇨", location: "" },
+  { value: "아르기닌", location: "" },
+  { value: "밀크시슬", location: "" },
+  { value: "탈모치료제", location: "" },
+  { value: "마그네슘", location: "" },
+  { value: "종합영양제", location: "" },
+  { value: "드링크제", location: "" },
+  { value: "파스류", location: "" },
+  { value: "보호대", location: "" },
+  { value: "마스크", location: "" },
 ];
 
 const AUTO_CATEGORY_RULES = [
@@ -92,7 +110,25 @@ const AUTO_CATEGORY_RULES = [
   ["구강 및 입술 케어", ["립", "입술", "립밤"]],
   ["금연보조제", ["금연", "니코틴"]],
   ["소독용 에탄올 및 살균소독제", ["에탄올", "소독", "살균"]],
-  ["의약외품", ["마스크", "보호대", "파스", "드링크", "유산균", "오메가", "비타민", "밀크시슬", "루테인", "마그네슘", "건기식"]],
+  ["의약외품", ["의약외품", "외용액"]],
+  ["유산균", ["유산균", "프로바이오", "락토", "비오틱"]],
+  ["은행잎, 뇌영양제", ["은행", "징코", "기억", "뇌영양"]],
+  ["오메가3", ["오메가", "omega"]],
+  ["눈영양제", ["루테인", "지아잔틴", "눈영양", "빌베리"]],
+  ["관절약", ["관절", "글루코사민", "콘드로이친", "msm"]],
+  ["비타민C", ["비타민c", "비타민 c", "아스코르빈"]],
+  ["비타민D", ["비타민d", "비타민 d", "디카맥스", "칼슘"]],
+  ["혈압, 혈행, 혈당건강", ["혈압", "혈행", "혈당", "코큐텐", "바나바"]],
+  ["남성 배뇨", ["남성", "전립", "쏘팔메토", "배뇨"]],
+  ["아르기닌", ["아르기닌", "arginine"]],
+  ["밀크시슬", ["밀크시슬", "실리마린"]],
+  ["탈모치료제", ["탈모", "미녹시딜", "판시딜", "마이녹실"]],
+  ["마그네슘", ["마그네슘", "magnesium"]],
+  ["종합영양제", ["종합영양제", "종합비타민", "멀티비타민", "멀티 비타민"]],
+  ["드링크제", ["드링크", "박카스", "비타500", "원비", "활명수"]],
+  ["파스류", ["파스", "플라스타", "카타플라스마"]],
+  ["보호대", ["보호대", "서포터"]],
+  ["마스크", ["마스크", "kf94", "kf80"]],
 ];
 
 const EXTRA_LOCATION_OPTIONS = [];
@@ -159,8 +195,6 @@ const els = {
   template: $("#resultTemplate"),
   form: $("#detailForm"),
   formHome: $("#formHome"),
-  exportBtn: $("#exportBtn"),
-  importInput: $("#importInput"),
   imageBox: $(".image-box"),
   drugImage: $("#drugImage"),
   imageFallback: $("#imageFallback"),
@@ -251,7 +285,6 @@ async function supabaseFetch(path, options = {}) {
 
 function showApp() {
   els.appMain.classList.remove("hidden");
-  els.exportBtn.classList.remove("hidden");
   els.syncStatus.textContent = "Supabase 연결됨";
 }
 
@@ -1118,22 +1151,6 @@ function exportExcel() {
   URL.revokeObjectURL(url);
 }
 
-async function importJson(file) {
-  const text = await file.text();
-  const imported = JSON.parse(text);
-  if (!Array.isArray(imported)) throw new Error("JSON 배열 형식이 아닙니다.");
-  const dbRows = imported.map((product) => toDbProduct(product));
-  await supabaseFetch("/rest/v1/products?on_conflict=id", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Prefer: "resolution=merge-duplicates",
-    },
-    body: JSON.stringify(dbRows),
-  });
-  await loadProductsFromSupabase();
-}
-
 async function init() {
   renderCategoryOptions();
   showApp();
@@ -1218,18 +1235,6 @@ $("#removeImageBtn").addEventListener("click", () => {
     els.syncStatus.textContent = "이미지 삭제 실패";
     alert(`이미지 삭제에 실패했습니다: ${error.message}`);
   });
-});
-els.exportBtn.addEventListener("click", exportExcel);
-els.importInput.addEventListener("change", async (event) => {
-  const [file] = event.target.files;
-  if (!file) return;
-  try {
-    await importJson(file);
-  } catch (error) {
-    alert(`가져오기에 실패했습니다: ${error.message}`);
-  } finally {
-    event.target.value = "";
-  }
 });
 fields.category.addEventListener("change", () => {
   fields.category.value = canonicalizeCategory(fields.name.value, fields.category.value);
