@@ -42,20 +42,14 @@ const SHELF_CATEGORIES = [
   { value: "감기약2", location: "8-R" },
   { value: "치질약", location: "9-L" },
   { value: "지루성피부염(비듬)", location: "9-L" },
-  { value: "특수 한방제제", location: "9-R" },
   { value: "어린이의약품", location: "10-L" },
-  { value: "어린이의약품", location: "10-R" },
   { value: "염색약", location: "11-L" },
   { value: "다한증치료제", location: "11-L" },
   { value: "여름용품", location: "11-L" },
   { value: "구강 및 입술 케어", location: "11-R" },
   { value: "금연보조제", location: "11-R" },
   { value: "소독용 에탄올 및 살균소독제", location: "12-L" },
-  { value: "어린이의약품", location: "12-R" },
   { value: "의약외품", location: "13-L" },
-  { value: "의약외품", location: "13-R" },
-  { value: "파스", location: "PS" },
-  { value: "드링크", location: "DR" },
   { value: "유산균", location: "" },
   { value: "은행잎, 뇌영양제", location: "" },
   { value: "오메가3", location: "" },
@@ -297,6 +291,75 @@ function categoryLabel(category) {
   return category.replace(/^[^\p{L}\p{N}]+/u, "").trim() || "미분류";
 }
 
+function categoryEmoji(category) {
+  const value = categoryLabel(category);
+  const rules = [
+    ["해열", "🌡️"],
+    ["진통", "🌡️"],
+    ["안과", "👁️"],
+    ["인공눈물", "👁️"],
+    ["우황", "🌿"],
+    ["수면", "🌙"],
+    ["근육", "💪"],
+    ["외용진통", "🩹"],
+    ["연고", "🧴"],
+    ["여성", "🌸"],
+    ["피임", "🌸"],
+    ["임신", "🧪"],
+    ["밴드", "🩹"],
+    ["무좀", "🦶"],
+    ["진균", "🦶"],
+    ["구강", "🦷"],
+    ["치아", "🦷"],
+    ["멀미", "🚗"],
+    ["구충", "🛡️"],
+    ["항히스타민", "🤧"],
+    ["알러지", "🤧"],
+    ["동물", "🐾"],
+    ["한방", "🌿"],
+    ["위장", "🍽️"],
+    ["소화", "🍽️"],
+    ["지사", "🚽"],
+    ["변비", "🚽"],
+    ["관장", "🚽"],
+    ["감기", "🤧"],
+    ["치질", "🪑"],
+    ["비듬", "🧴"],
+    ["어린이", "🧸"],
+    ["염색", "🎨"],
+    ["다한증", "💧"],
+    ["여름", "☀️"],
+    ["금연", "🚭"],
+    ["소독", "🧼"],
+    ["살균", "🧼"],
+    ["의약외품", "📦"],
+    ["유산균", "🦠"],
+    ["은행", "🧠"],
+    ["뇌영양", "🧠"],
+    ["오메가", "🐟"],
+    ["눈영양", "👁️"],
+    ["관절", "🦴"],
+    ["비타민C", "🍊"],
+    ["비타민D", "☀️"],
+    ["혈압", "🫀"],
+    ["혈행", "🫀"],
+    ["혈당", "🩸"],
+    ["남성", "♂️"],
+    ["배뇨", "🚻"],
+    ["아르기닌", "⚡"],
+    ["밀크시슬", "🌱"],
+    ["탈모", "💇"],
+    ["마그네슘", "⚙️"],
+    ["종합영양제", "💊"],
+    ["드링크", "🧃"],
+    ["파스", "🩹"],
+    ["보호대", "🛡️"],
+    ["마스크", "😷"],
+  ];
+  const match = rules.find(([keyword]) => value.includes(keyword));
+  return match ? match[1] : "💊";
+}
+
 function categoryColor(category) {
   const palette = [
     "#5eead4",
@@ -440,6 +503,15 @@ async function saveProductToSupabase(product) {
   return fromDbProduct(row);
 }
 
+async function deleteProductFromSupabase(productId) {
+  await supabaseFetch(`/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
+    method: "DELETE",
+    headers: {
+      Prefer: "return=minimal",
+    },
+  });
+}
+
 async function seedProductsToSupabase() {
   els.syncStatus.textContent = "초기 데이터 등록 중";
   const response = await fetch(SEED_URL);
@@ -510,7 +582,7 @@ function renderCategoryOptions() {
   fields.category.innerHTML = [
     '<option value="">미분류</option>',
     ...categoryOptions().map((category) => {
-      return `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`;
+      return `<option value="${escapeHtml(category)}">${categoryEmoji(category)} ${escapeHtml(category)}</option>`;
     }),
   ].join("");
 }
@@ -530,8 +602,9 @@ function renderCategoryTabs() {
       const label = category ? categoryLabel(category) : "전체";
       const active = state.categoryFilter === category ? " active" : "";
       const color = category ? categoryColor(category) : "#34d399";
-      return `<button class="${active}" style="--cat:${color}" type="button" data-category="${category}">
-        <span>${label}</span>
+      const icon = category ? categoryEmoji(category) : "🔎";
+      return `<button class="${active}" style="--cat:${color}" type="button" data-category="${escapeHtml(category)}">
+        <span class="category-label"><span class="category-emoji">${icon}</span><span>${escapeHtml(label)}</span></span>
         <span class="category-count">${count}</span>
       </button>`;
     })
@@ -568,8 +641,9 @@ function productMatches(product) {
 }
 
 function formatMeta(product) {
+  const category = product.category || "미분류";
   const parts = [
-    ["category", product.category || "미분류"],
+    ["category", `${categoryEmoji(category)} ${category}`],
     ["price", formatPrice(product.price)],
   ];
 
@@ -796,7 +870,7 @@ function renderDetail() {
   const category = product.category || "미분류";
 
   els.detailTitle.textContent = product.name;
-  els.detailCategory.textContent = categoryLabel(category);
+  els.detailCategory.textContent = `${categoryEmoji(category)} ${categoryLabel(category)}`;
   els.detailCategory.style.setProperty("--cat", categoryColor(category));
   els.factLocation.textContent = product.location || "미지정";
   els.factStock.textContent = product.stock || "미확인";
@@ -879,6 +953,24 @@ async function toggleStock(product, type) {
   renderResults();
   if (state.selectedId === saved.id) renderDetail();
   els.syncStatus.textContent = "재고 저장 완료";
+}
+
+async function deleteSelectedProduct() {
+  const product = selectedProduct();
+  if (!product) return;
+
+  const ok = window.confirm(`정말로 "${product.name}" 약품을 삭제하시겠습니까?\n삭제하면 목록에서 사라지고 되돌릴 수 없습니다.`);
+  if (!ok) return;
+
+  els.syncStatus.textContent = "삭제 중";
+  await deleteProductFromSupabase(product.id);
+  state.products = state.products.filter((item) => item.id !== product.id);
+  state.selectedId = null;
+  state.detailTab = "view";
+  renderCategoryOptions();
+  renderCategoryTabs();
+  renderDetail();
+  els.syncStatus.textContent = "삭제 완료";
 }
 
 function excelCell(value) {
@@ -1013,6 +1105,13 @@ $("#resetBtn").addEventListener("click", async () => {
     console.error(error);
     alert(`초기화에 실패했습니다: ${error.message}`);
   }
+});
+$("#deleteBtn").addEventListener("click", () => {
+  deleteSelectedProduct().catch((error) => {
+    console.error(error);
+    els.syncStatus.textContent = "삭제 실패";
+    alert(`삭제에 실패했습니다: ${error.message}`);
+  });
 });
 els.exportBtn.addEventListener("click", exportExcel);
 els.importInput.addEventListener("change", async (event) => {
