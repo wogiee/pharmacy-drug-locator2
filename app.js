@@ -1106,8 +1106,9 @@ async function updateSelectedProduct() {
   const index = state.products.findIndex((item) => item.id === saved.id);
   if (index >= 0) state.products[index] = saved;
   renderCategoryTabs();
+  renderLocationFilterOptions();
   renderDetail();
-  els.syncStatus.textContent = "저장 완료";
+  els.syncStatus.textContent = "저장되었습니다";
 }
 
 async function toggleStock(product, type) {
@@ -1140,6 +1141,7 @@ async function deleteSelectedProduct() {
   state.detailTab = "view";
   renderCategoryOptions();
   renderCategoryTabs();
+  renderLocationFilterOptions();
   renderDetail();
   els.syncStatus.textContent = "삭제 완료";
 }
