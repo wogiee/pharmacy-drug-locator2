@@ -91,6 +91,27 @@ const AUTO_CATEGORY_RULES = [
   ["마스크", ["마스크", "kf94", "kf80"]],
 ];
 
+const INFERRED_CATEGORY_LOCATIONS = {
+  유산균: "14-L",
+  "은행잎, 뇌영양제": "14-L",
+  오메가3: "14-L",
+  눈영양제: "14-L",
+  관절약: "14-R",
+  비타민C: "14-R",
+  비타민D: "14-R",
+  "혈압, 혈행, 혈당건강": "14-R",
+  "남성 배뇨": "15-L",
+  아르기닌: "15-L",
+  밀크시슬: "15-L",
+  탈모치료제: "15-L",
+  마그네슘: "15-R",
+  종합영양제: "15-R",
+  드링크제: "DR",
+  파스류: "PS",
+  보호대: "15-R",
+  마스크: "15-R",
+};
+
 const CATEGORY_LOCATION = new Map();
 for (const item of SHELF_CATEGORIES) {
   if (!CATEGORY_LOCATION.has(item.value)) CATEGORY_LOCATION.set(item.value, item.location);
@@ -267,6 +288,19 @@ function inferCategoryFromName(name) {
   return "";
 }
 
+function inferLocationForProduct(name, category) {
+  const cleanCategory = categoryLabel(category);
+  if (cleanCategory.includes("파스")) return "PS";
+  if (cleanCategory.includes("드링크")) return "DR";
+  if (CATEGORY_LOCATION.has(cleanCategory)) return CATEGORY_LOCATION.get(cleanCategory);
+  if (INFERRED_CATEGORY_LOCATIONS[cleanCategory]) return INFERRED_CATEGORY_LOCATIONS[cleanCategory];
+
+  const inferredCategory = inferCategoryFromName(name);
+  if (inferredCategory) return INFERRED_CATEGORY_LOCATIONS[inferredCategory] || initialLocation(inferredCategory);
+
+  return "";
+}
+
 function isEditingProduct() {
   return state.detailTab === "edit" && !els.form.classList.contains("hidden");
 }
@@ -382,7 +416,7 @@ function categoryColor(category) {
 
 function createProducts(rows) {
   return rows.map((row, index) => {
-    const category = row["카테고리"] || "";
+    const category = categoryLabel(row["카테고리"] || "");
     const name = row["약품명"] || "";
 
     return {
@@ -394,7 +428,7 @@ function createProducts(rows) {
       stock: normalizeStoreStock(row["재고"] || ""),
       warehouseStock: WAREHOUSE_STOCK_OFF,
       manufacturer: row["제약회사"] || "",
-      location: initialLocation(category),
+      location: inferLocationForProduct(name, category),
       description: "",
       imageUrl: "",
       sourceUrl: "",
@@ -424,16 +458,17 @@ function mergeOfficialDetails(baseProducts, detailPayload) {
 }
 
 function fromDbProduct(row) {
+  const category = categoryLabel(row.category || "");
   return {
     id: row.id,
     name: row.name || "",
     officialName: row.official_name || "",
-    category: row.category || "",
+    category,
     price: row.price || "",
     stock: normalizeStoreStock(row.stock || ""),
     warehouseStock: normalizeWarehouseStock(row.warehouse_stock || ""),
     manufacturer: row.manufacturer || "",
-    location: row.location || "",
+    location: row.location || inferLocationForProduct(row.name || "", category),
     description: row.description || "",
     imageUrl: row.image_url || "",
     sourceUrl: row.source_url || "",
@@ -451,7 +486,7 @@ function toDbProduct(product) {
     id: product.id,
     name: product.name || "",
     official_name: product.officialName || "",
-    category: product.category || "",
+    category: categoryLabel(product.category || ""),
     price: product.price || "",
     stock: product.stock || "",
     warehouse_stock: product.warehouseStock || WAREHOUSE_STOCK_OFF,
@@ -467,9 +502,54 @@ function toDbProduct(product) {
   };
 }
 
+function gelposSplitTargets(product) {
+  const match = product.name.match(/겔포스\s*([엘엠])\s*\(\s*4포\s*\/\s*6포\s*\)/);
+  if (!match) return [];
+
+  const kind = match[1];
+  const kindKey = kind === "엘" ? "l" : "m";
+  return ["4포", "6포"].map((pack) => ({
+    ...product,
+    id: `${product.id}-gelpos-${kindKey}-${pack.replace("포", "p")}`,
+    name: `겔포스 ${kind} ${pack}`,
+    officialName: product.officialName
+      ? product.officialName.replace(/겔포스\s*([엘엠])\s*\(\s*4포\s*\/\s*6포\s*\)/, `겔포스 ${kind} ${pack}`)
+      : "",
+    location: product.location || inferLocationForProduct(`겔포스 ${kind} ${pack}`, product.category),
+    updatedAt: new Date().toISOString(),
+  }));
+}
+
+async function ensureSplitGelposProducts(products) {
+  const existingNames = new Set(products.map((product) => normalizeForSearch(product.name)));
+  let changed = false;
+
+  for (const product of products) {
+    const targets = gelposSplitTargets(product);
+    if (!targets.length) continue;
+
+    for (const target of targets) {
+      if (!existingNames.has(normalizeForSearch(target.name))) {
+        await saveProductToSupabase(target);
+        changed = true;
+      }
+    }
+
+    await deleteProductFromSupabase(product.id);
+    changed = true;
+  }
+
+  return changed;
+}
+
 async function loadProductsFromSupabase({ preserveSelection = false, quiet = false } = {}) {
   if (!quiet) els.syncStatus.textContent = "약품 데이터 불러오는 중";
-  const rows = await supabaseFetch("/rest/v1/products?select=*&order=name.asc");
+  let rows = await supabaseFetch("/rest/v1/products?select=*&order=name.asc");
+  const loadedProducts = rows.map(fromDbProduct);
+  if (await ensureSplitGelposProducts(loadedProducts)) {
+    rows = await supabaseFetch("/rest/v1/products?select=*&order=name.asc");
+  }
+
   const previousSelected = state.selectedId;
   state.products = rows.map(fromDbProduct);
   state.lastLoadedAt = new Date();
@@ -565,12 +645,13 @@ function categoryOptions() {
   const options = [];
   const seen = new Set();
   for (const item of SHELF_CATEGORIES) {
-    if (seen.has(item.value)) continue;
-    seen.add(item.value);
-    options.push(item.value);
+    const category = categoryLabel(item.value);
+    if (seen.has(category)) continue;
+    seen.add(category);
+    options.push(category);
   }
   for (const product of state.products) {
-    const category = product.category || "";
+    const category = categoryLabel(product.category || "");
     if (!category || seen.has(category)) continue;
     seen.add(category);
     options.push(category);
@@ -582,7 +663,7 @@ function renderCategoryOptions() {
   fields.category.innerHTML = [
     '<option value="">미분류</option>',
     ...categoryOptions().map((category) => {
-      return `<option value="${escapeHtml(category)}">${categoryEmoji(category)} ${escapeHtml(category)}</option>`;
+      return `<option value="${escapeHtml(categoryLabel(category))}">${categoryEmoji(category)} ${escapeHtml(categoryLabel(category))}</option>`;
     }),
   ].join("");
 }
@@ -590,7 +671,7 @@ function renderCategoryOptions() {
 function renderCategoryTabs() {
   const counts = new Map();
   for (const product of state.products) {
-    const category = product.category || "미분류";
+    const category = categoryLabel(product.category || "미분류");
     counts.set(category, (counts.get(category) || 0) + 1);
   }
 
@@ -641,7 +722,7 @@ function productMatches(product) {
 }
 
 function formatMeta(product) {
-  const category = product.category || "미분류";
+  const category = categoryLabel(product.category || "미분류");
   const parts = [
     ["category", `${categoryEmoji(category)} ${category}`],
     ["price", formatPrice(product.price)],
@@ -914,7 +995,7 @@ async function updateSelectedProduct() {
   if (!product) return;
 
   const inferredCategory = inferCategoryFromName(fields.name.value.trim());
-  const chosenCategory = fields.category.value.trim() || inferredCategory;
+  const chosenCategory = categoryLabel(fields.category.value.trim() || inferredCategory);
 
   Object.assign(product, {
     name: fields.name.value.trim(),
@@ -928,7 +1009,9 @@ async function updateSelectedProduct() {
 
   if (product.category.includes("파스")) product.location = "PS";
   if (product.category.includes("드링크")) product.location = "DR";
-  if (!product.location && CATEGORY_LOCATION.has(product.category)) product.location = CATEGORY_LOCATION.get(product.category);
+  if (!product.location || product.location === "미지정") {
+    product.location = inferLocationForProduct(product.name, product.category);
+  }
 
   els.syncStatus.textContent = "저장 중";
   const saved = await saveProductToSupabase(product);
