@@ -8,8 +8,8 @@ const STORE_STOCK_ON = "재고 있음";
 const STORE_STOCK_OFF = "재고 없음";
 const WAREHOUSE_STOCK_ON = "창고에 재고 있음";
 const WAREHOUSE_STOCK_OFF = "창고에 재고 없음";
-const PHOTO_OCR_TIMEOUT_MS = 20000;
-const MAX_PHOTO_UPLOADS = 5;
+const PHOTO_OCR_TIMEOUT_MS = 45000;
+const MAX_PHOTO_UPLOADS = 10;
 const OCR_LANGUAGE = "kor+eng";
 
 const SHELF_CATEGORIES = [
@@ -877,18 +877,46 @@ async function analyzeProductPhoto(file) {
 
   const dataUrl = await readFileAsDataUrl(file);
   const image = await loadImageElement(dataUrl);
-  const labelImage = cropImageForOcr(image, { x: 0, y: 0.72, width: 1, height: 0.28 }, "label");
-  const priceImage = cropImageForOcr(image, { x: 0.35, y: 0.78, width: 0.65, height: 0.22 }, "price");
+  const labelImage = cropImageForOcr(image, { x: 0, y: 0.7, width: 1, height: 0.3 }, "label");
+  const nameImage = cropImageForOcr(image, { x: 0.02, y: 0.68, width: 0.88, height: 0.18 }, "name");
+  const priceImages = [
+    cropImageForOcr(image, { x: 0.34, y: 0.77, width: 0.66, height: 0.23 }, "price-dark"),
+    cropImageForOcr(image, { x: 0.34, y: 0.77, width: 0.66, height: 0.23 }, "price-mid"),
+    cropImageForOcr(image, { x: 0.28, y: 0.74, width: 0.72, height: 0.26 }, "price-soft"),
+  ];
 
-  const labelResult = await recognizeWithTimeout(labelImage, OCR_LANGUAGE);
-  const priceResult = await recognizeWithTimeout(priceImage, "eng", {
+  const nameResult = await recognizeWithTimeout(nameImage, OCR_LANGUAGE, {
+    preserve_interword_spaces: "1",
+    tessedit_pageseg_mode: "6",
+  });
+  const labelResult = await recognizeWithTimeout(labelImage, OCR_LANGUAGE, {
+    preserve_interword_spaces: "1",
+    tessedit_pageseg_mode: "6",
+  });
+  const priceTexts = [];
+  for (const priceImage of priceImages) {
+    const priceResult = await recognizeWithTimeout(priceImage, "eng", {
+      preserve_interword_spaces: "1",
+      tessedit_pageseg_mode: "7",
+      classify_bln_numeric_mode: "1",
+      tessedit_char_whitelist: "0123456789,",
+    });
+    priceTexts.push(priceResult?.data?.text || "");
+  }
+
+  const priceFallbackResult = await recognizeWithTimeout(labelImage, "eng", {
+    preserve_interword_spaces: "1",
+    tessedit_pageseg_mode: "6",
     tessedit_char_whitelist: "0123456789,",
   });
 
+  const nameText = nameResult?.data?.text || "";
   const labelText = labelResult?.data?.text || "";
-  const priceText = priceResult?.data?.text || "";
-  const name = extractNameFromPriceLabel(labelResult?.data?.lines || [], labelText);
-  const price = extractPriceFromText(`${priceText}\n${labelText}`);
+  const price = pickBestPrice([...priceTexts, priceFallbackResult?.data?.text || "", labelText]);
+  const name = extractNameFromPriceLabel(
+    [...(nameResult?.data?.lines || []), ...(labelResult?.data?.lines || [])],
+    `${nameText}\n${labelText}`,
+  );
   const category = canonicalizeCategory(name, inferCategoryFromName(name));
 
   return {
@@ -923,7 +951,7 @@ function cropImageForOcr(image, crop, mode = "label") {
   const sourceY = Math.round(image.height * crop.y);
   const sourceWidth = Math.round(image.width * crop.width);
   const sourceHeight = Math.round(image.height * crop.height);
-  const targetWidth = Math.min(1600, Math.max(900, sourceWidth));
+  const targetWidth = Math.min(1800, Math.max(mode.startsWith("price") ? 1200 : 1000, sourceWidth));
   const scale = targetWidth / sourceWidth;
   const targetHeight = Math.round(sourceHeight * scale);
   const canvas = document.createElement("canvas");
@@ -936,7 +964,10 @@ function cropImageForOcr(image, crop, mode = "label") {
   const data = imageData.data;
   for (let index = 0; index < data.length; index += 4) {
     const gray = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
-    const boosted = mode === "price" ? (gray > 155 ? 255 : 0) : Math.min(255, Math.max(0, (gray - 118) * 1.45 + 128));
+    let boosted = Math.min(255, Math.max(0, (gray - 118) * 1.45 + 128));
+    if (mode === "price-dark") boosted = gray > 125 ? 255 : 0;
+    if (mode === "price-mid") boosted = gray > 155 ? 255 : 0;
+    if (mode === "price-soft") boosted = gray > 185 ? 255 : 0;
     data[index] = boosted;
     data[index + 1] = boosted;
     data[index + 2] = boosted;
@@ -970,6 +1001,25 @@ function extractPriceFromText(text) {
     .filter((value) => Number.isFinite(value) && value >= 500 && value <= 100000);
   if (!values.length) return "";
   return String(values[values.length - 1]);
+}
+
+function pickBestPrice(texts) {
+  const values = [];
+  for (const text of texts) {
+    const matches = String(text || "").match(/\d{1,3}(?:,\d{3})+|\d{3,6}/g) || [];
+    for (const match of matches) {
+      const value = Number(match.replace(/[^\d]/g, ""));
+      if (Number.isFinite(value) && value >= 500 && value <= 100000) values.push(value);
+    }
+  }
+  if (!values.length) return "";
+
+  const counts = new Map();
+  for (const value of values) {
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+  return String(ranked[0][0]);
 }
 
 function extractNameFromPriceLabel(lines, fallbackText) {
