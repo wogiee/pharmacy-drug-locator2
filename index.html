@@ -122,6 +122,23 @@
       </article>
     </template>
 
+    <div id="cropDialog" class="crop-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="cropDialogTitle">
+      <div class="crop-card">
+        <div class="crop-header">
+          <h2 id="cropDialogTitle">가격표 영역 선택</h2>
+          <p>약품명과 가격이 있는 가격표만 네모로 지정해주세요.</p>
+        </div>
+        <div id="cropStage" class="crop-stage">
+          <img id="cropImage" alt="가격표 영역 선택용 사진" />
+          <div id="cropSelection" class="crop-selection"></div>
+        </div>
+        <div class="crop-actions">
+          <button id="cropCancelBtn" type="button">취소</button>
+          <button id="cropUseBtn" type="button">이 영역 분석</button>
+        </div>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="./app.js"></script>
   </body>

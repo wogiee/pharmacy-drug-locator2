@@ -11,6 +11,12 @@ const WAREHOUSE_STOCK_OFF = "창고에 재고 없음";
 const PHOTO_OCR_TIMEOUT_MS = 45000;
 const MAX_PHOTO_UPLOADS = 10;
 const OCR_LANGUAGE = "kor+eng";
+const OCR_CORRECTIONS_KEY = "pharmacyOcrCorrections.v1";
+const TESSERACT_BEST_LANG_PATH = "https://raw.githubusercontent.com/naptha/tessdata/gh-pages/4.0.0_best";
+const TESSERACT_BASE_OPTIONS = {
+  langPath: TESSERACT_BEST_LANG_PATH,
+  cacheMethod: "write",
+};
 
 const SHELF_CATEGORIES = [
   { value: "해열진통소염제", location: "1-L" },
@@ -211,6 +217,12 @@ const els = {
   factPrice: $("#factPrice"),
   factSource: $("#factSource"),
   factDescription: $("#factDescription"),
+  cropDialog: $("#cropDialog"),
+  cropStage: $("#cropStage"),
+  cropImage: $("#cropImage"),
+  cropSelection: $("#cropSelection"),
+  cropUseBtn: $("#cropUseBtn"),
+  cropCancelBtn: $("#cropCancelBtn"),
 };
 
 const fields = {
@@ -864,7 +876,66 @@ function parseDescriptionSections(description) {
     .filter((section) => section.body);
 }
 
-async function analyzeProductPhoto(file) {
+function loadOcrCorrections() {
+  try {
+    const payload = JSON.parse(window.localStorage.getItem(OCR_CORRECTIONS_KEY) || "[]");
+    return Array.isArray(payload) ? payload : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveOcrCorrections(corrections) {
+  window.localStorage.setItem(OCR_CORRECTIONS_KEY, JSON.stringify(corrections.slice(0, 500)));
+}
+
+function ocrTokens(text) {
+  const cleaned = cleanOcrText(text)
+    .replace(/\d{1,3}(?:,\d{3})+|\d{3,6}/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ");
+  return [...new Set(cleaned.split(/\s+/).map((token) => normalizeForSearch(token)).filter((token) => token.length >= 2))];
+}
+
+function ocrSimilarity(leftText, rightText) {
+  const left = new Set(ocrTokens(leftText));
+  const right = new Set(ocrTokens(rightText));
+  if (!left.size || !right.size) return 0;
+  let same = 0;
+  for (const token of left) {
+    if (right.has(token)) same += 1;
+  }
+  return same / Math.max(left.size, right.size);
+}
+
+function findOcrCorrection(rawText) {
+  const corrections = loadOcrCorrections();
+  let best = null;
+  for (const correction of corrections) {
+    const score = ocrSimilarity(rawText, correction.rawText || "");
+    if (score >= 0.45 && (!best || score > best.score)) best = { ...correction, score };
+  }
+  return best;
+}
+
+function rememberOcrCorrection(product) {
+  if (!product?.ocrRawText) return;
+  const corrected = {
+    rawText: product.ocrRawText,
+    name: product.name || "",
+    category: product.category || "",
+    price: product.price || "",
+    updatedAt: new Date().toISOString(),
+  };
+  if (!corrected.name || corrected.name === "사진 분석 필요") return;
+
+  const corrections = loadOcrCorrections();
+  const existingIndex = corrections.findIndex((item) => ocrSimilarity(item.rawText || "", corrected.rawText) >= 0.75);
+  if (existingIndex >= 0) corrections.splice(existingIndex, 1);
+  corrections.unshift(corrected);
+  saveOcrCorrections(corrections);
+}
+
+async function analyzeProductPhoto(file, selectedCrop = null) {
   if (!window.Tesseract?.recognize) {
     return {
       name: "사진 분석 필요",
@@ -877,54 +948,88 @@ async function analyzeProductPhoto(file) {
 
   const dataUrl = await readFileAsDataUrl(file);
   const image = await loadImageElement(dataUrl);
-  const labelImage = cropImageForOcr(image, { x: 0, y: 0.7, width: 1, height: 0.3 }, "label");
-  const nameImage = cropImageForOcr(image, { x: 0.02, y: 0.68, width: 0.88, height: 0.18 }, "name");
+  const crop = selectedCrop || { x: 0, y: 0.68, width: 1, height: 0.32 };
+  const labelImages = [
+    cropImageForOcr(image, crop, "label"),
+    cropImageForOcr(image, crop, "label-hard"),
+    cropImageForOcr(image, crop, "label-soft"),
+  ];
+  const nameImages = [
+    cropImageForOcr(image, cropTopSlice(crop, 0.55), "name"),
+    cropImageForOcr(image, cropTopSlice(crop, 0.45), "name-hard"),
+  ];
   const priceImages = [
-    cropImageForOcr(image, { x: 0.34, y: 0.77, width: 0.66, height: 0.23 }, "price-dark"),
-    cropImageForOcr(image, { x: 0.34, y: 0.77, width: 0.66, height: 0.23 }, "price-mid"),
-    cropImageForOcr(image, { x: 0.28, y: 0.74, width: 0.72, height: 0.26 }, "price-soft"),
+    cropImageForOcr(image, cropRightSlice(crop, 0.68), "price-dark"),
+    cropImageForOcr(image, cropRightSlice(crop, 0.68), "price-mid"),
+    cropImageForOcr(image, cropRightSlice(crop, 0.68), "price-soft"),
+    cropImageForOcr(image, cropBottomSlice(crop, 0.72), "price-dark"),
+    cropImageForOcr(image, cropBottomSlice(crop, 0.72), "price-mid"),
   ];
 
-  const nameResult = await recognizeWithTimeout(nameImage, OCR_LANGUAGE, {
-    preserve_interword_spaces: "1",
-    tessedit_pageseg_mode: "6",
-  });
-  const labelResult = await recognizeWithTimeout(labelImage, OCR_LANGUAGE, {
-    preserve_interword_spaces: "1",
-    tessedit_pageseg_mode: "6",
-  });
+  const nameTexts = [];
+  const nameLines = [];
+  for (const nameImage of nameImages) {
+    const result = await recognizeWithTimeout(nameImage, OCR_LANGUAGE, {
+      preserve_interword_spaces: "1",
+      tessedit_pageseg_mode: "7",
+      tessedit_ocr_engine_mode: "1",
+    });
+    nameTexts.push(result?.data?.text || "");
+    nameLines.push(...(result?.data?.lines || []));
+  }
+
+  const labelTexts = [];
+  const labelLines = [];
+  for (const labelImage of labelImages) {
+    const result = await recognizeWithTimeout(labelImage, OCR_LANGUAGE, {
+      preserve_interword_spaces: "1",
+      tessedit_pageseg_mode: "6",
+      tessedit_ocr_engine_mode: "1",
+    });
+    labelTexts.push(result?.data?.text || "");
+    labelLines.push(...(result?.data?.lines || []));
+  }
+
   const priceTexts = [];
   for (const priceImage of priceImages) {
     const priceResult = await recognizeWithTimeout(priceImage, "eng", {
       preserve_interword_spaces: "1",
       tessedit_pageseg_mode: "7",
       classify_bln_numeric_mode: "1",
+      tessedit_ocr_engine_mode: "1",
       tessedit_char_whitelist: "0123456789,",
     });
     priceTexts.push(priceResult?.data?.text || "");
   }
 
-  const priceFallbackResult = await recognizeWithTimeout(labelImage, "eng", {
-    preserve_interword_spaces: "1",
-    tessedit_pageseg_mode: "6",
-    tessedit_char_whitelist: "0123456789,",
-  });
+  for (const labelImage of labelImages) {
+    const priceFallbackResult = await recognizeWithTimeout(labelImage, "eng", {
+      preserve_interword_spaces: "1",
+      tessedit_pageseg_mode: "11",
+      tessedit_ocr_engine_mode: "1",
+      classify_bln_numeric_mode: "1",
+      tessedit_char_whitelist: "0123456789,",
+    });
+    priceTexts.push(priceFallbackResult?.data?.text || "");
+  }
 
-  const nameText = nameResult?.data?.text || "";
-  const labelText = labelResult?.data?.text || "";
-  const price = pickBestPrice([...priceTexts, priceFallbackResult?.data?.text || "", labelText]);
+  const labelText = labelTexts.join("\n");
+  const nameText = nameTexts.join("\n");
+  const price = pickBestPrice([...priceTexts, labelText]);
   const name = extractNameFromPriceLabel(
-    [...(nameResult?.data?.lines || []), ...(labelResult?.data?.lines || [])],
+    [...nameLines, ...labelLines],
     `${nameText}\n${labelText}`,
   );
   const category = canonicalizeCategory(name, inferCategoryFromName(name));
+  const rawText = cleanOcrText(`${nameText}\n${labelText}\n${priceTexts.join("\n")}`);
+  const correction = findOcrCorrection(rawText);
 
   return {
-    name: name || "사진 분석 필요",
-    price,
-    category,
-    rawText: cleanOcrText(labelText),
-    needsReview: !name || !price,
+    name: correction?.name || name || "사진 분석 필요",
+    price: correction?.price || price,
+    category: correction?.category || category,
+    rawText,
+    needsReview: !correction && (!name || !price),
   };
 }
 
@@ -951,7 +1056,7 @@ function cropImageForOcr(image, crop, mode = "label") {
   const sourceY = Math.round(image.height * crop.y);
   const sourceWidth = Math.round(image.width * crop.width);
   const sourceHeight = Math.round(image.height * crop.height);
-  const targetWidth = Math.min(1800, Math.max(mode.startsWith("price") ? 1200 : 1000, sourceWidth));
+  const targetWidth = Math.min(2400, Math.max(mode.startsWith("price") ? 1500 : 1300, sourceWidth));
   const scale = targetWidth / sourceWidth;
   const targetHeight = Math.round(sourceHeight * scale);
   const canvas = document.createElement("canvas");
@@ -964,7 +1069,9 @@ function cropImageForOcr(image, crop, mode = "label") {
   const data = imageData.data;
   for (let index = 0; index < data.length; index += 4) {
     const gray = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
-    let boosted = Math.min(255, Math.max(0, (gray - 118) * 1.45 + 128));
+    let boosted = Math.min(255, Math.max(0, (gray - 112) * 1.65 + 128));
+    if (mode === "label-hard" || mode === "name-hard") boosted = gray > 150 ? 255 : 0;
+    if (mode === "label-soft") boosted = Math.min(255, Math.max(0, (gray - 130) * 1.25 + 128));
     if (mode === "price-dark") boosted = gray > 125 ? 255 : 0;
     if (mode === "price-mid") boosted = gray > 155 ? 255 : 0;
     if (mode === "price-soft") boosted = gray > 185 ? 255 : 0;
@@ -976,10 +1083,143 @@ function cropImageForOcr(image, crop, mode = "label") {
   return canvas.toDataURL("image/png");
 }
 
+function cropTopSlice(crop, ratio) {
+  return {
+    x: crop.x,
+    y: crop.y,
+    width: crop.width,
+    height: Math.max(0.05, crop.height * ratio),
+  };
+}
+
+function cropRightSlice(crop, ratio) {
+  const width = crop.width * ratio;
+  return {
+    x: crop.x + crop.width - width,
+    y: crop.y,
+    width,
+    height: crop.height,
+  };
+}
+
+function cropBottomSlice(crop, ratio) {
+  const height = crop.height * ratio;
+  return {
+    x: crop.x,
+    y: crop.y + crop.height - height,
+    width: crop.width,
+    height,
+  };
+}
+
+function clampCrop(crop) {
+  const x = Math.min(0.98, Math.max(0, crop.x));
+  const y = Math.min(0.98, Math.max(0, crop.y));
+  const width = Math.min(1 - x, Math.max(0.02, crop.width));
+  const height = Math.min(1 - y, Math.max(0.02, crop.height));
+  return { x, y, width, height };
+}
+
+async function selectPriceLabelArea(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  els.cropImage.src = dataUrl;
+  els.cropDialog.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  await new Promise((resolve, reject) => {
+    if (els.cropImage.complete && els.cropImage.naturalWidth) {
+      resolve();
+      return;
+    }
+    els.cropImage.onload = () => resolve();
+    els.cropImage.onerror = () => reject(new Error("선택용 이미지를 불러오지 못했습니다."));
+  });
+
+  let crop = { x: 0.08, y: 0.72, width: 0.84, height: 0.22 };
+  let dragStart = null;
+
+  const updateSelection = () => {
+    const imageRect = els.cropImage.getBoundingClientRect();
+    const stageRect = els.cropStage.getBoundingClientRect();
+    els.cropSelection.style.left = `${imageRect.left - stageRect.left + imageRect.width * crop.x}px`;
+    els.cropSelection.style.top = `${imageRect.top - stageRect.top + imageRect.height * crop.y}px`;
+    els.cropSelection.style.width = `${imageRect.width * crop.width}px`;
+    els.cropSelection.style.height = `${imageRect.height * crop.height}px`;
+  };
+
+  const pointToCrop = (event) => {
+    const rect = els.cropImage.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+    return { x, y };
+  };
+
+  const onPointerDown = (event) => {
+    event.preventDefault();
+    dragStart = pointToCrop(event);
+    crop = { x: dragStart.x, y: dragStart.y, width: 0.02, height: 0.02 };
+    updateSelection();
+    els.cropStage.setPointerCapture?.(event.pointerId);
+  };
+
+  const onPointerMove = (event) => {
+    if (!dragStart) return;
+    const point = pointToCrop(event);
+    const x = Math.min(dragStart.x, point.x);
+    const y = Math.min(dragStart.y, point.y);
+    crop = clampCrop({
+      x,
+      y,
+      width: Math.abs(point.x - dragStart.x),
+      height: Math.abs(point.y - dragStart.y),
+    });
+    updateSelection();
+  };
+
+  const onPointerUp = () => {
+    dragStart = null;
+  };
+
+  const cleanup = () => {
+    els.cropStage.removeEventListener("pointerdown", onPointerDown);
+    els.cropStage.removeEventListener("pointermove", onPointerMove);
+    els.cropStage.removeEventListener("pointerup", onPointerUp);
+    els.cropStage.removeEventListener("pointercancel", onPointerUp);
+    els.cropDialog.classList.add("hidden");
+    document.body.classList.remove("modal-open");
+    els.cropImage.src = "";
+  };
+
+  updateSelection();
+  els.cropStage.addEventListener("pointerdown", onPointerDown);
+  els.cropStage.addEventListener("pointermove", onPointerMove);
+  els.cropStage.addEventListener("pointerup", onPointerUp);
+  els.cropStage.addEventListener("pointercancel", onPointerUp);
+
+  return new Promise((resolve, reject) => {
+    const onUse = () => {
+      els.cropUseBtn.removeEventListener("click", onUse);
+      els.cropCancelBtn.removeEventListener("click", onCancel);
+      cleanup();
+      resolve(clampCrop(crop));
+    };
+    const onCancel = () => {
+      els.cropUseBtn.removeEventListener("click", onUse);
+      els.cropCancelBtn.removeEventListener("click", onCancel);
+      cleanup();
+      reject(new Error("가격표 영역 선택이 취소되었습니다."));
+    };
+    els.cropUseBtn.addEventListener("click", onUse);
+    els.cropCancelBtn.addEventListener("click", onCancel);
+  });
+}
+
 function recognizeWithTimeout(imageDataUrl, language, config = {}) {
   return new Promise((resolve, reject) => {
     const timeoutId = window.setTimeout(() => reject(new Error("사진 분석 시간이 초과되었습니다.")), PHOTO_OCR_TIMEOUT_MS);
-    window.Tesseract.recognize(imageDataUrl, language, config)
+    window.Tesseract.recognize(imageDataUrl, language, {
+      ...TESSERACT_BASE_OPTIONS,
+      ...config,
+    })
       .then((result) => resolve(result))
       .catch((error) => reject(error))
       .finally(() => window.clearTimeout(timeoutId));
@@ -1138,6 +1378,7 @@ async function addNewProduct(overrides = {}) {
     sourceUrl: "",
     sourceName: "",
     itemSeq: "",
+    ocrRawText: overrides.ocrRawText || "",
     matchedScore: 0,
     matchedAt: "",
     updatedAt: new Date().toISOString(),
@@ -1162,8 +1403,10 @@ async function addNewProductFromPhoto(file) {
     return;
   }
 
+  els.syncStatus.textContent = "가격표 영역 선택 중";
+  const selectedCrop = await selectPriceLabelArea(file);
   els.syncStatus.textContent = "사진 분석 중";
-  const analysis = await analyzeProductPhoto(file);
+  const analysis = await analyzeProductPhoto(file, selectedCrop);
   els.syncStatus.textContent = "사진 저장 중";
 
   const productId = `drug-photo-${Date.now()}`;
@@ -1177,6 +1420,7 @@ async function addNewProductFromPhoto(file) {
     category,
     price: analysis.price || "",
     imageUrl,
+    ocrRawText: analysis.rawText || "",
   });
 
   els.syncStatus.textContent = analysis.price
@@ -1293,6 +1537,7 @@ async function updateSelectedProduct() {
     location: inferLocationForProduct(fields.name.value.trim(), chosenCategory),
     updatedAt: new Date().toISOString(),
   });
+  rememberOcrCorrection(product);
 
   els.syncStatus.textContent = "저장 중";
   const saved = await saveProductToSupabase(product);
