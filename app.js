@@ -8,6 +8,7 @@ const STORE_STOCK_ON = "재고 있음";
 const STORE_STOCK_OFF = "재고 없음";
 const WAREHOUSE_STOCK_ON = "창고에 재고 있음";
 const WAREHOUSE_STOCK_OFF = "창고에 재고 없음";
+const OCR_LANGUAGE = "kor+eng";
 
 const SHELF_CATEGORIES = [
   { value: "해열진통소염제", location: "1-L" },
@@ -26,8 +27,7 @@ const SHELF_CATEGORIES = [
   { value: "멀미약", location: "3-L" },
   { value: "구충제", location: "3-L" },
   { value: "습윤밴드", location: "3-R" },
-  { value: "항히스타민제", location: "4-L" },
-  { value: "알러지", location: "4-L" },
+  { value: "항히스타민제/알러지", location: "4-L" },
   { value: "동물용 의약품", location: "4-R" },
   { value: "치아 구강용제", location: "5-L" },
   { value: "여성 건강기능식품(항산화, 갱년기 완화, 부종 개선)", location: "5-R" },
@@ -87,8 +87,7 @@ const AUTO_CATEGORY_RULES = [
   ["멀미약", ["멀미", "키미테", "배멀미", "차멀미"]],
   ["구충제", ["구충", "회충", "요충"]],
   ["습윤밴드", ["습윤", "메디폼", "듀오덤", "하이드로콜로이드"]],
-  ["항히스타민제", ["항히스타민", "알레르기약", "콧물", "재채기"]],
-  ["알러지", ["알러지", "알레르기", "비염"]],
+  ["항히스타민제/알러지", ["항히스타민", "알레르기약", "알러지", "알레르기", "비염", "콧물", "재채기"]],
   ["동물용 의약품", ["동물용", "반려", "강아지", "고양이"]],
   ["치아 구강용제", ["치통", "치아", "잇몸", "치약", "입냄새"]],
   ["여성 건강기능식품(항산화, 갱년기 완화, 부종 개선)", ["갱년기", "이노시톨", "크랜베리", "여성유산균"]],
@@ -103,7 +102,7 @@ const AUTO_CATEGORY_RULES = [
   ["감기약2", ["종합감기", "감기약", "몸살감기"]],
   ["치질약", ["치질", "치핵", "치열"]],
   ["지루성피부염(비듬)", ["비듬", "지루성", "니조랄"]],
-  ["어린이의약품", ["어린이", "키즈", "베이비", "챔프", "부루펜시럽"]],
+  ["어린이의약품", ["어린이", "키즈", "베이비", "챔프", "부루펜시럽", "오트리빈"]],
   ["염색약", ["염색약", "헤어컬러"]],
   ["다한증치료제", ["다한증", "드리클로"]],
   ["여름용품", ["모기", "벌레", "쿨", "여름"]],
@@ -147,7 +146,7 @@ const LOCATION_HELP_TEXT = {
   "2-R": "일반밴드",
   "3-L": "항진균제(무좀), 구강질환용제, 멀미약, 구충제",
   "3-R": "습윤밴드",
-  "4-L": "항히스타민제, 알러지",
+  "4-L": "항히스타민제/알러지",
   "4-R": "동물용 의약품",
   "5-L": "치아 구강용제",
   "5-R": "여성 건강기능식품(항산화, 갱년기 완화, 부종 개선)",
@@ -187,6 +186,8 @@ const els = {
   syncStatus: $("#syncStatus"),
   seedBtn: $("#seedBtn"),
   addProductBtn: $("#addProductBtn"),
+  photoAddBtn: $("#photoAddBtn"),
+  photoAddInput: $("#photoAddInput"),
   searchInput: $("#searchInput"),
   categoryTabs: $("#categoryTabs"),
   locationFilter: $("#locationFilter"),
@@ -341,6 +342,10 @@ function inferCategoryFromName(name) {
 function canonicalizeCategory(name, category) {
   const cleanCategory = categoryLabel(String(category || ""));
   const cleanName = String(name || "");
+
+  if (cleanCategory === "항히스타민제" || cleanCategory === "알러지") {
+    return "항히스타민제/알러지";
+  }
 
   if (
     cleanCategory.includes("소염진통제") ||
@@ -857,6 +862,178 @@ function parseDescriptionSections(description) {
     .filter((section) => section.body);
 }
 
+async function ensureOcrReady() {
+  if (!window.Tesseract?.recognize) {
+    throw new Error("사진 분석 도구를 불러오지 못했습니다. 인터넷 연결 후 다시 시도해주세요.");
+  }
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("이미지 파일을 읽지 못했습니다."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
+    image.src = src;
+  });
+}
+
+function cropImageDataUrl(image, crop) {
+  const canvas = document.createElement("canvas");
+  const width = Math.max(1, Math.round(image.width * crop.width));
+  const height = Math.max(1, Math.round(image.height * crop.height));
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  context.drawImage(
+    image,
+    Math.round(image.width * crop.x),
+    Math.round(image.height * crop.y),
+    width,
+    height,
+    0,
+    0,
+    width,
+    height,
+  );
+  return canvas.toDataURL("image/jpeg", 0.92);
+}
+
+function cleanOcrText(text) {
+  return String(text || "")
+    .replace(/[|]/g, " ")
+    .replace(/[^\p{L}\p{N}\s()%+\-.,]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLikelyPriceText(text) {
+  return /\d/.test(text) && (text.includes(",") || text.length <= 8);
+}
+
+function extractPriceFromText(text) {
+  const matches = String(text || "").match(/\d{1,3}(?:,\d{3})+|\d{3,6}/g) || [];
+  const values = matches
+    .map((match) => Number(match.replace(/[^\d]/g, "")))
+    .filter((value) => Number.isFinite(value) && value >= 500 && value <= 100000);
+  if (!values.length) return "";
+  return String(values[values.length - 1]);
+}
+
+function isIgnoredNameFragment(text) {
+  const value = cleanOcrText(text);
+  if (!value) return true;
+  if (isLikelyPriceText(value)) return true;
+  const blocked = [
+    "분무형",
+    "생리식염수",
+    "정량분사",
+    "스프레이",
+    "보습성",
+    "회복",
+    "촉진",
+    "염화나트륨",
+    "증상",
+    "완화",
+    "0세부터",
+    "0 세부터",
+    "HALEON",
+  ];
+  return blocked.some((keyword) => value.includes(keyword));
+}
+
+function scoreNameCandidate(text, line, imageHeight, repeatedCount = 1) {
+  const value = cleanOcrText(text);
+  const hangulCount = (value.match(/[가-힣]/g) || []).length;
+  const alphaCount = (value.match(/[A-Za-z]/g) || []).length;
+  const digitCount = (value.match(/\d/g) || []).length;
+  const lengthScore = value.length >= 3 && value.length <= 18 ? 16 : 6;
+  const positionScore = line.bbox.y0 < imageHeight * 0.8 ? 10 : 0;
+  const repeatScore = repeatedCount > 1 ? 20 : 0;
+  return hangulCount * 6 + alphaCount * 2 + lengthScore + positionScore + repeatScore - digitCount * 5;
+}
+
+function extractNameFromOcrLines(lines, imageHeight) {
+  const normalizedLines = lines
+    .map((line) => ({
+      text: cleanOcrText(line.text),
+      bbox: line.bbox,
+    }))
+    .filter((line) => line.text && !isIgnoredNameFragment(line.text))
+    .sort((a, b) => a.bbox.y0 - b.bbox.y0);
+
+  if (!normalizedLines.length) return "";
+
+  const repeatedCounts = new Map();
+  for (const line of normalizedLines) {
+    repeatedCounts.set(line.text, (repeatedCounts.get(line.text) || 0) + 1);
+  }
+
+  const candidates = [];
+  for (let index = 0; index < normalizedLines.length; index += 1) {
+    const line = normalizedLines[index];
+    candidates.push({
+      text: line.text,
+      score: scoreNameCandidate(line.text, line, imageHeight, repeatedCounts.get(line.text)),
+    });
+
+    const next = normalizedLines[index + 1];
+    if (!next) continue;
+    const gap = next.bbox.y0 - line.bbox.y1;
+    const combined = `${line.text} ${next.text}`.trim();
+    if (gap <= imageHeight * 0.06 && !isIgnoredNameFragment(combined) && combined.length <= 24) {
+      candidates.push({
+        text: combined,
+        score:
+          scoreNameCandidate(line.text, line, imageHeight, repeatedCounts.get(line.text)) +
+          scoreNameCandidate(next.text, next, imageHeight, repeatedCounts.get(next.text)) +
+          14,
+      });
+    }
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.text || "";
+}
+
+async function analyzeProductPhoto(file) {
+  await ensureOcrReady();
+  const dataUrl = await readFileAsDataUrl(file);
+  const image = await loadImageElement(dataUrl);
+  const analysisUrl = cropImageDataUrl(image, { x: 0, y: 0, width: 1, height: 1 });
+
+  const result = await window.Tesseract.recognize(analysisUrl, OCR_LANGUAGE);
+  const imageHeight = result?.data?.lines?.[0]?.bbox ? image.height : image.height;
+  const lines = result?.data?.lines || [];
+  const text = result?.data?.text || "";
+
+  const lowerRegionText = lines
+    .filter((line) => line.bbox.y0 >= image.height * 0.68)
+    .map((line) => line.text)
+    .join("\n");
+
+  const packageRegionLines = lines.filter((line) => line.bbox.y0 <= image.height * 0.8);
+  const extractedName =
+    extractNameFromOcrLines(packageRegionLines, image.height) || extractNameFromOcrLines(lines, image.height);
+  const extractedPrice = extractPriceFromText(lowerRegionText || text);
+  const category = canonicalizeCategory(extractedName, inferCategoryFromName(`${extractedName}\n${text}`));
+
+  return {
+    name: extractedName || "사진 분석 필요",
+    price: extractedPrice,
+    category,
+    rawText: cleanOcrText(text),
+  };
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => {
     const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -935,20 +1112,21 @@ function placeEditForm() {
   els.form.classList.add("hidden");
 }
 
-async function addNewProduct() {
+async function addNewProduct(overrides = {}) {
   const presetCategory = ALLOWED_CATEGORIES.has(state.categoryFilter) ? state.categoryFilter : "";
+  const baseCategory = overrides.category || presetCategory;
   const product = {
-    id: `drug-custom-${Date.now()}`,
-    name: "새 약품",
+    id: overrides.id || `drug-custom-${Date.now()}`,
+    name: overrides.name || "새 약품",
     officialName: "",
-    category: presetCategory,
-    price: "",
-    stock: STORE_STOCK_ON,
-    warehouseStock: WAREHOUSE_STOCK_OFF,
+    category: baseCategory,
+    price: overrides.price || "",
+    stock: overrides.stock || STORE_STOCK_ON,
+    warehouseStock: overrides.warehouseStock || WAREHOUSE_STOCK_OFF,
     manufacturer: "",
-    location: inferLocationForProduct("새 약품", presetCategory),
+    location: inferLocationForProduct(overrides.name || "새 약품", baseCategory),
     description: "",
-    imageUrl: "",
+    imageUrl: overrides.imageUrl || "",
     sourceUrl: "",
     sourceName: "",
     itemSeq: "",
@@ -967,6 +1145,68 @@ async function addNewProduct() {
   fields.name.focus();
   fields.name.select();
   els.syncStatus.textContent = "새 약품 생성 완료";
+}
+
+async function addNewProductFromPhoto(file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    alert("사진 파일만 추가할 수 있습니다.");
+    return;
+  }
+
+  els.syncStatus.textContent = "사진 분석 중";
+  const analysis = await analyzeProductPhoto(file);
+  els.syncStatus.textContent = "사진 저장 중";
+
+  const productId = `drug-photo-${Date.now()}`;
+  const imageBlob = await imageFileToBlob(file);
+  const imageUrl = await uploadImageToSupabase(`${productId}-${Date.now()}.jpg`, imageBlob);
+  const category = canonicalizeCategory(analysis.name, analysis.category);
+
+  await addNewProduct({
+    id: productId,
+    name: analysis.name || "사진 분석 필요",
+    category,
+    price: analysis.price || "",
+    imageUrl,
+  });
+
+  els.syncStatus.textContent = analysis.price
+    ? "사진 분석 완료"
+    : "사진 분석 완료 · 가격 확인 필요";
+}
+
+async function addMultipleProductsFromPhotos(files) {
+  const list = [...files].filter(Boolean);
+  if (!list.length) return;
+
+  let successCount = 0;
+  const failures = [];
+
+  for (let index = 0; index < list.length; index += 1) {
+    const file = list[index];
+    try {
+      els.syncStatus.textContent = `사진 분석 중 ${index + 1}/${list.length}`;
+      await addNewProductFromPhoto(file);
+      successCount += 1;
+    } catch (error) {
+      console.error(error);
+      failures.push(`${file.name}: ${error.message}`);
+    }
+  }
+
+  if (successCount && !failures.length) {
+    els.syncStatus.textContent = `${successCount}장 등록 완료`;
+    return;
+  }
+
+  if (successCount && failures.length) {
+    els.syncStatus.textContent = `${successCount}장 등록 완료 · 일부 실패`;
+    alert(`일부 사진은 등록되지 않았습니다.\n\n${failures.slice(0, 5).join("\n")}`);
+    return;
+  }
+
+  throw new Error(failures[0] || "사진 등록에 실패했습니다.");
 }
 
 function setDetailTab(tab) {
@@ -1171,6 +1411,22 @@ els.addProductBtn.addEventListener("click", () => {
     els.syncStatus.textContent = "약품 추가 실패";
     alert(`약품 추가에 실패했습니다: ${error.message}`);
   });
+});
+els.photoAddBtn.addEventListener("click", () => {
+  els.photoAddInput.click();
+});
+els.photoAddInput.addEventListener("change", async (event) => {
+  const files = [...(event.target.files || [])];
+  if (!files.length) return;
+  try {
+    await addMultipleProductsFromPhotos(files);
+  } catch (error) {
+    console.error(error);
+    els.syncStatus.textContent = "사진 분석 실패";
+    alert(`사진 분석에 실패했습니다: ${error.message}`);
+  } finally {
+    event.target.value = "";
+  }
 });
 els.categoryTabs.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-category]");

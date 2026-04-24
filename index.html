@@ -15,7 +15,9 @@
       <div class="top-actions">
         <span id="syncStatus" class="sync-status">오프라인 준비 중</span>
         <button id="seedBtn" type="button" class="hidden">초기 데이터 등록</button>
-        <button id="addProductBtn" type="button">약품 추가</button>
+        <button id="addProductBtn" type="button">직접 추가</button>
+        <button id="photoAddBtn" type="button">사진으로 추가</button>
+        <input id="photoAddInput" class="hidden" type="file" accept="image/*" capture="environment" multiple />
       </div>
     </header>
 
@@ -120,6 +122,7 @@
       </article>
     </template>
 
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>
