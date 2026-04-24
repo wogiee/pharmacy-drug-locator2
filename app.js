@@ -8,6 +8,8 @@ const STORE_STOCK_ON = "재고 있음";
 const STORE_STOCK_OFF = "재고 없음";
 const WAREHOUSE_STOCK_ON = "창고에 재고 있음";
 const WAREHOUSE_STOCK_OFF = "창고에 재고 없음";
+const PHOTO_OCR_TIMEOUT_MS = 20000;
+const MAX_PHOTO_UPLOADS = 5;
 const OCR_LANGUAGE = "kor+eng";
 
 const SHELF_CATEGORIES = [
@@ -862,10 +864,40 @@ function parseDescriptionSections(description) {
     .filter((section) => section.body);
 }
 
-async function ensureOcrReady() {
+async function analyzeProductPhoto(file) {
   if (!window.Tesseract?.recognize) {
-    throw new Error("사진 분석 도구를 불러오지 못했습니다. 인터넷 연결 후 다시 시도해주세요.");
+    return {
+      name: "사진 분석 필요",
+      price: "",
+      category: "",
+      rawText: "",
+      needsReview: true,
+    };
   }
+
+  const dataUrl = await readFileAsDataUrl(file);
+  const image = await loadImageElement(dataUrl);
+  const labelImage = cropImageForOcr(image, { x: 0, y: 0.72, width: 1, height: 0.28 }, "label");
+  const priceImage = cropImageForOcr(image, { x: 0.35, y: 0.78, width: 0.65, height: 0.22 }, "price");
+
+  const labelResult = await recognizeWithTimeout(labelImage, OCR_LANGUAGE);
+  const priceResult = await recognizeWithTimeout(priceImage, "eng", {
+    tessedit_char_whitelist: "0123456789,",
+  });
+
+  const labelText = labelResult?.data?.text || "";
+  const priceText = priceResult?.data?.text || "";
+  const name = extractNameFromPriceLabel(labelResult?.data?.lines || [], labelText);
+  const price = extractPriceFromText(`${priceText}\n${labelText}`);
+  const category = canonicalizeCategory(name, inferCategoryFromName(name));
+
+  return {
+    name: name || "사진 분석 필요",
+    price,
+    category,
+    rawText: cleanOcrText(labelText),
+    needsReview: !name || !price,
+  };
 }
 
 function readFileAsDataUrl(file) {
@@ -886,25 +918,41 @@ function loadImageElement(src) {
   });
 }
 
-function cropImageDataUrl(image, crop) {
+function cropImageForOcr(image, crop, mode = "label") {
+  const sourceX = Math.round(image.width * crop.x);
+  const sourceY = Math.round(image.height * crop.y);
+  const sourceWidth = Math.round(image.width * crop.width);
+  const sourceHeight = Math.round(image.height * crop.height);
+  const targetWidth = Math.min(1600, Math.max(900, sourceWidth));
+  const scale = targetWidth / sourceWidth;
+  const targetHeight = Math.round(sourceHeight * scale);
   const canvas = document.createElement("canvas");
-  const width = Math.max(1, Math.round(image.width * crop.width));
-  const height = Math.max(1, Math.round(image.height * crop.height));
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d");
-  context.drawImage(
-    image,
-    Math.round(image.width * crop.x),
-    Math.round(image.height * crop.y),
-    width,
-    height,
-    0,
-    0,
-    width,
-    height,
-  );
-  return canvas.toDataURL("image/jpeg", 0.92);
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, targetWidth, targetHeight);
+
+  const imageData = context.getImageData(0, 0, targetWidth, targetHeight);
+  const data = imageData.data;
+  for (let index = 0; index < data.length; index += 4) {
+    const gray = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+    const boosted = mode === "price" ? (gray > 155 ? 255 : 0) : Math.min(255, Math.max(0, (gray - 118) * 1.45 + 128));
+    data[index] = boosted;
+    data[index + 1] = boosted;
+    data[index + 2] = boosted;
+  }
+  context.putImageData(imageData, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+function recognizeWithTimeout(imageDataUrl, language, config = {}) {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error("사진 분석 시간이 초과되었습니다.")), PHOTO_OCR_TIMEOUT_MS);
+    window.Tesseract.recognize(imageDataUrl, language, config)
+      .then((result) => resolve(result))
+      .catch((error) => reject(error))
+      .finally(() => window.clearTimeout(timeoutId));
+  });
 }
 
 function cleanOcrText(text) {
@@ -913,10 +961,6 @@ function cleanOcrText(text) {
     .replace(/[^\p{L}\p{N}\s()%+\-.,]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function isLikelyPriceText(text) {
-  return /\d/.test(text) && (text.includes(",") || text.length <= 8);
 }
 
 function extractPriceFromText(text) {
@@ -928,110 +972,24 @@ function extractPriceFromText(text) {
   return String(values[values.length - 1]);
 }
 
-function isIgnoredNameFragment(text) {
-  const value = cleanOcrText(text);
-  if (!value) return true;
-  if (isLikelyPriceText(value)) return true;
-  const blocked = [
-    "분무형",
-    "생리식염수",
-    "정량분사",
-    "스프레이",
-    "보습성",
-    "회복",
-    "촉진",
-    "염화나트륨",
-    "증상",
-    "완화",
-    "0세부터",
-    "0 세부터",
-    "HALEON",
-  ];
-  return blocked.some((keyword) => value.includes(keyword));
-}
+function extractNameFromPriceLabel(lines, fallbackText) {
+  const lineTexts = (lines || [])
+    .map((line) => cleanOcrText(line.text))
+    .filter(Boolean);
+  const fallbackLines = cleanOcrText(fallbackText).split(/\s{2,}|\n/).filter(Boolean);
+  const candidates = [...lineTexts, ...fallbackLines]
+    .map((text) => text.replace(/\d{1,3}(?:,\d{3})+|\d{3,6}/g, "").trim())
+    .filter((text) => /[가-힣A-Za-z]/.test(text))
+    .filter((text) => (text.match(/\d/g) || []).length <= 1)
+    .filter((text) => text.length >= 2 && text.length <= 24)
+    .filter((text) => !/(원|가격|판매|정가|매|개|포)$/.test(text));
 
-function scoreNameCandidate(text, line, imageHeight, repeatedCount = 1) {
-  const value = cleanOcrText(text);
-  const hangulCount = (value.match(/[가-힣]/g) || []).length;
-  const alphaCount = (value.match(/[A-Za-z]/g) || []).length;
-  const digitCount = (value.match(/\d/g) || []).length;
-  const lengthScore = value.length >= 3 && value.length <= 18 ? 16 : 6;
-  const positionScore = line.bbox.y0 < imageHeight * 0.8 ? 10 : 0;
-  const repeatScore = repeatedCount > 1 ? 20 : 0;
-  return hangulCount * 6 + alphaCount * 2 + lengthScore + positionScore + repeatScore - digitCount * 5;
-}
-
-function extractNameFromOcrLines(lines, imageHeight) {
-  const normalizedLines = lines
-    .map((line) => ({
-      text: cleanOcrText(line.text),
-      bbox: line.bbox,
-    }))
-    .filter((line) => line.text && !isIgnoredNameFragment(line.text))
-    .sort((a, b) => a.bbox.y0 - b.bbox.y0);
-
-  if (!normalizedLines.length) return "";
-
-  const repeatedCounts = new Map();
-  for (const line of normalizedLines) {
-    repeatedCounts.set(line.text, (repeatedCounts.get(line.text) || 0) + 1);
-  }
-
-  const candidates = [];
-  for (let index = 0; index < normalizedLines.length; index += 1) {
-    const line = normalizedLines[index];
-    candidates.push({
-      text: line.text,
-      score: scoreNameCandidate(line.text, line, imageHeight, repeatedCounts.get(line.text)),
-    });
-
-    const next = normalizedLines[index + 1];
-    if (!next) continue;
-    const gap = next.bbox.y0 - line.bbox.y1;
-    const combined = `${line.text} ${next.text}`.trim();
-    if (gap <= imageHeight * 0.06 && !isIgnoredNameFragment(combined) && combined.length <= 24) {
-      candidates.push({
-        text: combined,
-        score:
-          scoreNameCandidate(line.text, line, imageHeight, repeatedCounts.get(line.text)) +
-          scoreNameCandidate(next.text, next, imageHeight, repeatedCounts.get(next.text)) +
-          14,
-      });
-    }
-  }
-
-  candidates.sort((a, b) => b.score - a.score);
-  return candidates[0]?.text || "";
-}
-
-async function analyzeProductPhoto(file) {
-  await ensureOcrReady();
-  const dataUrl = await readFileAsDataUrl(file);
-  const image = await loadImageElement(dataUrl);
-  const analysisUrl = cropImageDataUrl(image, { x: 0, y: 0, width: 1, height: 1 });
-
-  const result = await window.Tesseract.recognize(analysisUrl, OCR_LANGUAGE);
-  const imageHeight = result?.data?.lines?.[0]?.bbox ? image.height : image.height;
-  const lines = result?.data?.lines || [];
-  const text = result?.data?.text || "";
-
-  const lowerRegionText = lines
-    .filter((line) => line.bbox.y0 >= image.height * 0.68)
-    .map((line) => line.text)
-    .join("\n");
-
-  const packageRegionLines = lines.filter((line) => line.bbox.y0 <= image.height * 0.8);
-  const extractedName =
-    extractNameFromOcrLines(packageRegionLines, image.height) || extractNameFromOcrLines(lines, image.height);
-  const extractedPrice = extractPriceFromText(lowerRegionText || text);
-  const category = canonicalizeCategory(extractedName, inferCategoryFromName(`${extractedName}\n${text}`));
-
-  return {
-    name: extractedName || "사진 분석 필요",
-    price: extractedPrice,
-    category,
-    rawText: cleanOcrText(text),
-  };
+  candidates.sort((a, b) => {
+    const aHangul = (a.match(/[가-힣]/g) || []).length;
+    const bHangul = (b.match(/[가-힣]/g) || []).length;
+    return bHangul * 4 + b.length - (aHangul * 4 + a.length);
+  });
+  return candidates[0] || "";
 }
 
 function escapeHtml(value) {
@@ -1173,11 +1131,15 @@ async function addNewProductFromPhoto(file) {
 
   els.syncStatus.textContent = analysis.price
     ? "사진 분석 완료"
-    : "사진 분석 완료 · 가격 확인 필요";
+    : "사진 등록 완료 · 직접 확인 필요";
 }
 
 async function addMultipleProductsFromPhotos(files) {
-  const list = [...files].filter(Boolean);
+  const selected = [...files].filter(Boolean);
+  if (selected.length > MAX_PHOTO_UPLOADS) {
+    alert(`사진은 한 번에 최대 ${MAX_PHOTO_UPLOADS}장까지 등록할 수 있습니다.`);
+  }
+  const list = selected.slice(0, MAX_PHOTO_UPLOADS);
   if (!list.length) return;
 
   let successCount = 0;
